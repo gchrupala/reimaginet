@@ -98,13 +98,14 @@ class Imaginet(object):
         self.updater = Adam()
         updates = self.updater.get_updates(self.network.params, cost)
         # TODO better way of dealing with needed/unneeded output_t_prev?
-        self.train = theano.function([input, output_v, output_t_prev, output_t ], 
-                                      [cost, cost_T, cost_V], updates=updates, on_unused_input='warn')
-        self.predict = theano.function([input, output_t_prev], [output_v_pred, output_t_pred], on_unused_input='warn')
-
+        self.train = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],
+                                     updates=updates, on_unused_input='warn')
         # Like train, but no updates
         self.loss = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],
                                     on_unused_input='warn')
+        self.predict = theano.function([input, output_t_prev], [output_v_pred, output_t_pred],
+                                       on_unused_input='warn')
+
 
 # Functions added outside the class do not interfere with loading of older versions
 def predictor_v(model):
