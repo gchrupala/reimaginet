@@ -31,8 +31,8 @@ def padder(sents, BEG, END):
 
 def batch(item, BEG, END):
     """Prepare minibatch."""
-    mb_inp = padder([s for s,_,_ in item])
-    mb_out_t = padder([r for _,r,_ in item])
+    mb_inp = padder([s for s,_,_ in item], BEG, END)
+    mb_out_t = padder([r for _,r,_ in item], BEG, END)
     inp = mb_inp[:,1:]
     out_t = mb_out_t[:,1:]
     out_prev_t = mb_out_t[:,0:-1]
@@ -45,7 +45,7 @@ def valid_loss(model, sents_val_in, sents_val_out, images_val, BEG_ID, END_ID,
     triples = zip(sents_val_in, sents_val_out, images_val)
     c = Counter()
     for item in grouper(triples, batch_size):
-        inp, out_v, out_prev_t, out_t = batch_imaginet(item, BEG_ID, END_ID)
+        inp, out_v, out_prev_t, out_t = batch(item, BEG_ID, END_ID)
         cost, cost_t, cost_v = model.loss(inp, out_v, out_prev_t, out_t)
         c += Counter({'cost_t': cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
     return c
@@ -65,7 +65,9 @@ def stats(c):
 
 def cmd_train( dataset='coco',
                model_path='.',
-               hidden_size=512,
+               hidden_size=1024,
+               gru_activation=clipped_rectify,
+               visual_activation=clipped_rectify,
                embedding_size=None,
                depth=1,
                scaler=None,
@@ -112,7 +114,9 @@ def cmd_train( dataset='coco',
                      size_out=4096,
                      depth=depth,
                      network=architecture,
-                     alpha=alpha)
+                     alpha=alpha,
+                     gru_activation=gru_activation,
+                     visual_activation=visual_activation)
     triples = zip(sents_in, sents_out, images)
     with open(logfile, 'w') as log:
         for epoch in range(1, epochs + 1):
@@ -120,7 +124,7 @@ def cmd_train( dataset='coco',
             N = 0
             for _j, item in enumerate(grouper(triples, batch_size)):
                 j = _j + 1
-                inp, out_v, out_prev_t, out_t = batch_imaginet(item, mapper.BEG_ID, mapper.END_ID)
+                inp, out_v, out_prev_t, out_t = batch(item, mapper.BEG_ID, mapper.END_ID)
                 cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
                 print epoch, j, j*batch_size, "train", stats(costs)
