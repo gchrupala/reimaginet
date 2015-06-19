@@ -138,11 +138,12 @@ def cmd_train( dataset='coco',
         
 def cmd_predict_v(dataset='coco',
                   model_path='.',
+                  model_name='model.pkl.gz',
                   batch_size=128,
                   output='predict_v.npy'):
     def load(f):
         return pickle.load(gzip.open(os.path.join(model_path, f)))
-    mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz','model.pkl.gz'])
+    mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz', model_name])
     predict_v = predictor_v(model)
     prov   = dp.getDataProvider(dataset)
     sents  = list(prov.iterSentences(split='val'))
@@ -164,6 +165,8 @@ def cmd_eval(dataset='coco',
     correct = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
                               for j in range(len(images)) ]
                             for i in range(len(sents)) ])
-    r = evaluate.ranking(img_fs, preds, correct, exclude_self=False)
+    r = evaluate.ranking(img_fs, preds, correct, ns=(1,5,10), exclude_self=False)
     json.dump(r, open(output, 'w'))
-    
+    print 'median_rank', numpy.median(r['ranks'])
+    for n in (1,5,10):
+        print 'recall@{}'.format(n), numpy.mean(r['recall'][n])
