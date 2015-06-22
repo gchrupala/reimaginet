@@ -17,8 +17,8 @@ import copy
 import time
 from collections import Counter
 import imagernn.data_provider as dp
-from layer import *
-from imaginet import Imaginet, MultitaskLM, MultitaskED, predictor_v
+from funktional.layer import *
+from models import Imaginet, MultitaskLM, MultitaskED, predictor_v
 import evaluate
 import json
 

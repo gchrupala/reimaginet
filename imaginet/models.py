@@ -1,8 +1,9 @@
-from layer import Layer, Dense, StackedGRU, StackedGRUH0, EncoderDecoderGRU, Embedding, OneHot, \
-                  last, softmax3d
-import util
-from util import CosineDistance, CrossEntropy, tanh, linear
-from util import autoassign, params
+from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
+                             EncoderDecoderGRU, Embedding, OneHot, \
+                             last, softmax3d
+import funktional.util as util
+from funktional.util import CosineDistance, CrossEntropy, tanh, linear
+from funktional.util import autoassign, params
 import theano.tensor as T
 import theano
 
