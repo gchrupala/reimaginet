@@ -6,21 +6,20 @@ from __future__ import division
 import theano
 import numpy
 import random
-import itertools
 import cPickle as pickle
 import argparse
 import gzip
 import sys
 import os
-import util
-import copy
-import time
+import funktional.util as util
+from funktional.util import linear, clipped_rectify, grouper, pad
 from collections import Counter
-import imagernn.data_provider as dp
-from funktional.layer import *
+import data_provider as dp
+#from funktional.layer import 
 from models import Imaginet, MultitaskLM, MultitaskED, predictor_v
 import evaluate
 import json
+from  sklearn.preprocessing import StandardScaler
 
 def batch_inp(sents, BEG, END):
     mb = padder(sents, BEG, END)
@@ -46,7 +45,7 @@ def valid_loss(model, sents_val_in, sents_val_out, images_val, BEG_ID, END_ID,
     c = Counter()
     for item in grouper(triples, batch_size):
         inp, out_v, out_prev_t, out_t = batch(item, BEG_ID, END_ID)
-        cost, cost_t, cost_v = model.loss(inp, out_v, out_prev_t, out_t)
+        cost, cost_t, cost_v = model.loss_test(inp, out_v, out_prev_t, out_t)
         c += Counter({'cost_t': cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
     return c
     
@@ -64,16 +63,19 @@ def stats(c):
     return " ".join(map(str, [c['cost_t']/c['N'], c['cost_v']/c['N'], c['cost']/c['N']]))
 
 def cmd_train( dataset='coco',
+               datapath='.',
                model_path='.',
                hidden_size=1024,
                gru_activation=clipped_rectify,
-               visual_activation=clipped_rectify,
+               visual_activation=linear,
+               max_norm=None,
                embedding_size=None,
                depth=1,
                scaler=None,
                seed=None,
                shuffle=False,
                architecture=MultitaskLM,
+               dropout_prob=0.0,
                alpha=0.1,
                epochs=1,
                batch_size=64,
@@ -82,7 +84,7 @@ def cmd_train( dataset='coco',
     sys.setrecursionlimit(50000) # needed for pickling models
     if seed is not None:
         random.seed(seed)
-    prov = dp.getDataProvider(dataset)
+    prov = dp.getDataProvider(dataset, root=datapath)
     data = list(prov.iterImageSentencePair(split='train'))
     data_val = list(prov.iterImageSentencePair(split='val'))
     if shuffle:
@@ -94,9 +96,8 @@ def cmd_train( dataset='coco',
 
     sents_val, images_val_ = \
                     zip(*[ (pair['sentence']['tokens'], pair['image']['feat']) for pair in data_val ])
-
-    images = scaler.fit_transform(images_)
-    images_val = scaler.transform(images_val_)
+    images = list(scaler.fit_transform(images_))
+    images_val = list(scaler.transform(images_val_))
     pickle.dump(scaler, gzip.open(os.path.join(model_path, 'scaler.pkl.gz'), 'w'),
                 protocol=pickle.HIGHEST_PROTOCOL)
     sents_in      = list(mapper.fit_transform(sents))
@@ -116,7 +117,9 @@ def cmd_train( dataset='coco',
                      network=architecture,
                      alpha=alpha,
                      gru_activation=gru_activation,
-                     visual_activation=visual_activation)
+                     visual_activation=visual_activation,
+                     max_norm=max_norm,
+                     dropout_prob=dropout_prob)
     triples = zip(sents_in, sents_out, images)
     with open(logfile, 'w') as log:
         for epoch in range(1, epochs + 1):
@@ -137,6 +140,7 @@ def cmd_train( dataset='coco',
         pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'))
         
 def cmd_predict_v(dataset='coco',
+                  datapath='.',
                   model_path='.',
                   model_name='model.pkl.gz',
                   batch_size=128,
@@ -145,7 +149,7 @@ def cmd_predict_v(dataset='coco',
         return pickle.load(gzip.open(os.path.join(model_path, f)))
     mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz', model_name])
     predict_v = predictor_v(model)
-    prov   = dp.getDataProvider(dataset)
+    prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
     preds  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
@@ -153,12 +157,13 @@ def cmd_predict_v(dataset='coco',
     numpy.save(os.path.join(model_path, output), preds)
     
 def cmd_eval(dataset='coco',
+             datapath='.',
              scaler_path='scaler.pkl.gz',
              input='predict_v.npy',
              output='eval.json'):
     scaler = pickle.load(gzip.open(scaler_path))
     preds  = numpy.load(input)
-    prov   = dp.getDataProvider(dataset)
+    prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     images = list(prov.iterImages(split='val'))
     img_fs = list(scaler.transform([ image['feat'] for image in images ]))
