@@ -10,4 +10,4 @@ In this repository we are trying new models and features.
 ## Pre-requisites
 
 Reimaginet relies on [Theano](https://github.com/Theano/Theano) and [funktional](https://github.com/gchrupala/funktional). For training models on 
-the MS-COCO dataset we currently rely on some helper code and data from [Neuraltalk](https://github.com/karpathy/neuraltalk).
+the MS-COCO dataset we currently rely on data from [Neuraltalk](https://github.com/karpathy/neuraltalk).
