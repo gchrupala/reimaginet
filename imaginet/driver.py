@@ -11,8 +11,9 @@ import argparse
 import gzip
 import sys
 import os
+import copy
 import funktional.util as util
-from funktional.util import linear, clipped_rectify, grouper, pad
+from funktional.util import linear, clipped_rectify, grouper, pad, autoassign
 from collections import Counter
 import data_provider as dp
 #from funktional.layer import 
@@ -38,13 +39,11 @@ def batch(item, BEG, END):
     out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
     return (inp, out_v, out_prev_t, out_t)
     
-def valid_loss(model, sents_val_in, sents_val_out, images_val, BEG_ID, END_ID,
-               batch_size=128):
+def valid_loss(model, data):
     """Apply model to validation data and return loss info."""
-    triples = zip(sents_val_in, sents_val_out, images_val)
     c = Counter()
-    for item in grouper(triples, batch_size):
-        inp, out_v, out_prev_t, out_t = batch(item, BEG_ID, END_ID)
+    for item in data.iter_valid_batches():
+        inp, out_v, out_prev_t, out_t = item
         cost, cost_t, cost_v = model.loss_test(inp, out_v, out_prev_t, out_t)
         c += Counter({'cost_t': cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
     return c
@@ -62,6 +61,75 @@ class NoScaler():
 def stats(c):
     return " ".join(map(str, [c['cost_t']/c['N'], c['cost_v']/c['N'], c['cost']/c['N']]))
 
+class Data(object):
+    """Training / validation data prepared to feed to the model."""
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para=False, shuffle=False):
+        autoassign(locals())
+        self.train_data = list(provider.iterImages(split='train'))
+        self.valid_data = list(provider.iterImages(split='val'))
+        self.data = {}
+        # TRAINING
+        if self.with_para:
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(self.train_data)))
+        else:
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(self.train_data)))
+        sents_in = self.mapper.fit_transform(sents_in)
+        sents_out = self.mapper.transform(sents_out)
+        imgs = self.scaler.fit_transform(imgs)
+        self.data['train'] = zip(sents_in, sents_out, imgs)
+        # VALIDATION
+        if self.with_para:
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(self.valid_data)))
+        else:
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(self.valid_data)))
+        sents_in = self.mapper.transform(sents_in)
+        sents_out = self.mapper.transform(sents_out)
+        imgs = self.scaler.transform(imgs)
+        self.data['valid'] = zip(sents_in, sents_out, imgs)
+
+        
+    def shuffled(self, xs):
+        if not self.shuffle:
+            return xs
+        else:
+            zs = copy.copy(list(xs))
+            random.shuffle(zs)
+            return zs
+        
+    def iter_train_batches(self):
+        for item in grouper(self.data['train'], self.batch_size):
+            yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+        
+    def iter_valid_batches(self):
+
+        for item in grouper(self.data['valid'], self.batch_size):
+            yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+
+    def dump(self, model_path):
+        """Write mapper and scaler to disc."""
+        pickle.dump(self.scaler, gzip.open(os.path.join(model_path, 'scaler.pkl.gz'), 'w'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(self.mapper, gzip.open(os.path.join(model_path, 'mapper.pkl.gz'),'w'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
+            
+        
+def arrange_para_rand(data):
+    for image in data:
+        for sent_in in image['sentences']:
+            sent_out = random.choice(image['sentences'])
+            yield (sent_in['tokens'], sent_out['tokens'], image['feat'])
+            
+def arrange_para(data):
+    for image in data:
+        for sent_in in image['sentences']:
+            for sent_out in image['sentences']:
+                yield (sent_in['tokens'], sent_out['tokens'], image['feat'])
+                
+def arrange_auto(data):
+    for image in data:
+        for sent in image['sentences']:
+            yield (sent['tokens'], sent['tokens'], image['feat'])
+    
 def cmd_train( dataset='coco',
                datapath='.',
                model_path='.',
@@ -74,6 +142,7 @@ def cmd_train( dataset='coco',
                scaler=None,
                seed=None,
                shuffle=False,
+               with_para=False,
                architecture=MultitaskLM,
                dropout_prob=0.0,
                alpha=0.1,
@@ -85,30 +154,12 @@ def cmd_train( dataset='coco',
     if seed is not None:
         random.seed(seed)
     prov = dp.getDataProvider(dataset, root=datapath)
-    data = list(prov.iterImageSentencePair(split='train'))
-    data_val = list(prov.iterImageSentencePair(split='val'))
-    if shuffle:
-        numpy.random.shuffle(data)
     mapper = util.IdMapper(min_df=10)
-    sents, images_ = zip(*[ (pair['sentence']['tokens'], pair['image']['feat']) for pair in data ])
     embedding_size = embedding_size if embedding_size is not None else hidden_size
     scaler = StandardScaler() if scaler == 'standard' else NoScaler()
-
-    sents_val, images_val_ = \
-                    zip(*[ (pair['sentence']['tokens'], pair['image']['feat']) for pair in data_val ])
-    images = list(scaler.fit_transform(images_))
-    images_val = list(scaler.transform(images_val_))
-    pickle.dump(scaler, gzip.open(os.path.join(model_path, 'scaler.pkl.gz'), 'w'),
-                protocol=pickle.HIGHEST_PROTOCOL)
-    sents_in      = list(mapper.fit_transform(sents))
-    sents_out     = list(mapper.transform(sents))
-
-    
-    sents_val_in  = list(mapper.transform(sents_val))
-    sents_val_out = list(mapper.transform(sents_val))
-
-    pickle.dump(mapper, gzip.open(os.path.join(model_path, 'mapper.pkl.gz'),'w'),
-                protocol=pickle.HIGHEST_PROTOCOL)
+    data = Data(prov, mapper, scaler, batch_size=batch_size, with_para=with_para,
+                shuffle=shuffle)
+    data.dump(model_path)
     model = Imaginet(size_vocab=mapper.size(),
                      size_embed=embedding_size,
                      size=hidden_size,
@@ -120,25 +171,25 @@ def cmd_train( dataset='coco',
                      visual_activation=visual_activation,
                      max_norm=max_norm,
                      dropout_prob=dropout_prob)
-    triples = zip(sents_in, sents_out, images)
     with open(logfile, 'w') as log:
         for epoch in range(1, epochs + 1):
             costs = Counter()
             N = 0
-            for _j, item in enumerate(grouper(triples, batch_size)):
+            for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
-                inp, out_v, out_prev_t, out_t = batch(item, mapper.BEG_ID, mapper.END_ID)
+                inp, out_v, out_prev_t, out_t = item
                 cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
                 print epoch, j, j*batch_size, "train", stats(costs)
                 if j*batch_size % validate_period == 0:
-                    costs_valid = valid_loss(model, sents_val_in, sents_val_out, images_val,
-                                             mapper.BEG_ID, mapper.END_ID)
+                    costs_valid = valid_loss(model, data)
                     print epoch, j, j, "valid", stats(costs_valid)
                 sys.stdout.flush()
-            pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'))
-        pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'))
-        
+            pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
+
 def cmd_predict_v(dataset='coco',
                   datapath='.',
                   model_path='.',
