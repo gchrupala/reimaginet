@@ -82,7 +82,39 @@ class Multitask(Layer):
         img   = self.visual_activation(self.Visual(inp_e))
         txt   = softmax3d(self.Embed.unembed(self.Textual(inp_e, *args_e)))
         return (img, txt)
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input], self.visual_activation(self.Visual(self.Embed(input))))
+    
+class MultitaskMM(Layer):
+    """Shared recurrent encoder with visual decoder + textual decoder."""
+    def __init__(self, size_vocab, size_embed, size, size_out, depth, 
+                 gru_activation=tanh, visual_activation=linear,
+                 dropout_prob=0.0):
+        autoassign(locals())
+        self.Embed = Embedding(self.size_vocab, self.size_embed)
+        self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth,
+                                   activation=self.gru_activation, dropout_prob=self.dropout_prob)
+        self.DecodeT = StackedGRU(self.size_embed, self.size, self.depth,
+                                  activation=self.gru_activation, dropout_prob=self.dropout_prob)
+        self.PredictT   = Dense(size_in=self.size, size_out=self.size_embed)
+        self.DecodeV = Dense(self.size, self.size_out)
+        self.params = params(self.Embed, self.DecodeT, self.PredictT, self.DecodeV) 
+        
+    def __call__(self, inp, out_prev):
+        rep = last(self.Encode(self.Embed(inp)))
+        img = self.visual_activation(self.DecodeV(rep))
+        txt = softmax3d(self.Embed.unembed(self.PredictT(self.DecodeT(rep, self.Embed(out_prev)))))
+        return (img, txt)
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input], self.visual_activation(self.DecodeV(last(self.Encode(self.Embed(input))))))
 
+    
 def MultitaskLM(size_vocab, size_embed, size, size_out, depth, **kwargs):
     """Visual encoder combined with a language model."""
     return Multitask(size_vocab, size_embed, size, size_out, depth, LM, **kwargs)
@@ -137,6 +169,6 @@ class Imaginet(object):
 # Functions added outside the class do not interfere with loading of older versions
 def predictor_v(model):
     """Return function to predict image vector from input using `model`."""
-    input    = T.imatrix()
-    return theano.function([input], model.network.Visual(model.network.Embed(input)))
+    return model.network.predictor_v()
+
     

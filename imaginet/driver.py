@@ -63,25 +63,29 @@ def stats(c):
 
 class Data(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, mapper, scaler, batch_size=64, with_para=False, shuffle=False):
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False):
         autoassign(locals())
-        self.train_data = list(provider.iterImages(split='train'))
-        self.valid_data = list(provider.iterImages(split='val'))
         self.data = {}
         # TRAINING
-        if self.with_para:
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(self.train_data)))
-        else:
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(self.train_data)))
+        if self.with_para == 'para_rand':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='train'))))
+        elif self.with_para == 'auto':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='train'))))
+        elif self.with_para == 'para_all':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='train'))))
+             
         sents_in = self.mapper.fit_transform(sents_in)
         sents_out = self.mapper.transform(sents_out)
         imgs = self.scaler.fit_transform(imgs)
         self.data['train'] = zip(sents_in, sents_out, imgs)
         # VALIDATION
-        if self.with_para:
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(self.valid_data)))
-        else:
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(self.valid_data)))
+        if self.with_para == 'para_rand':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='val'))))
+        elif self.with_para == 'auto':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='val'))))
+        elif self.with_para == 'para_all':
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='val'))))
+
         sents_in = self.mapper.transform(sents_in)
         sents_out = self.mapper.transform(sents_out)
         imgs = self.scaler.transform(imgs)
@@ -142,7 +146,7 @@ def cmd_train( dataset='coco',
                scaler=None,
                seed=None,
                shuffle=False,
-               with_para=False,
+               with_para='auto',
                architecture=MultitaskLM,
                dropout_prob=0.0,
                alpha=0.1,
@@ -205,6 +209,7 @@ def cmd_predict_v(dataset='coco',
     inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
     preds  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
                             for batch in grouper(inputs, batch_size) ])
+    print preds.shape
     numpy.save(os.path.join(model_path, output), preds)
     
 def cmd_eval(dataset='coco',
