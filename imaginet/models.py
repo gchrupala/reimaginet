@@ -1,25 +1,50 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
                              EncoderDecoderGRU, Embedding, OneHot, \
-                             last, softmax3d
+                             last, softmax3d, WithDropout
 import funktional.util as util
-from funktional.util import CosineDistance, CrossEntropy, tanh, linear
+from funktional.util import CosineDistance, CrossEntropy, tanh, linear, clipped_rectify
 from funktional.util import autoassign, params
 import funktional.context as context
 import theano.tensor as T
 import theano
 
+class Activation(Layer):
+    """Activation function object."""
+    def __init__(self, activation):
+        autoassign(locals())
+        self.params = []
+
+    def __call__(self, inp):
+        return self.activation(inp)
+    
+class DenseStack(Layer):
+    """Stack of fully connected layers."""
+    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, activation=tanh):
+        autoassign(locals())
+        self.bottom = WithDropout(Activation(self.activation).compose(Dense(self.size_in, self.size)),
+                                  self.dropout_prob)
+        layers = [ WithDropout(Activation(self.activation).compose(Dense(self.size, self.size)), self.dropout_prob)
+                   for _ in range(1, self.depth) ]
+        self.stack = reduce(lambda z, x: z.compose(x), layers, self.bottom)
+        self.params = self.stack.params
+
+    def __call__(self, inp):
+        return self.stack(inp)
+
 class Visual(Layer):
     """Encode sequence of inputs into a visual vector."""
 
-    def __init__(self, size_embed, size, size_out, depth, gru_activation=tanh, dropout_prob=0.0):
+    def __init__(self, size_embed, size, size_out, depth, out_depth=1, gru_activation=tanh, dropout_prob=0.0):
         autoassign(locals())
         self.Encode  = StackedGRUH0(self.size_embed, self.size, self.depth,
                                     activation=self.gru_activation, dropout_prob=self.dropout_prob)
+        self.Stack = DenseStack(self.size, self.size, depth=self.out_depth-1, dropout_prob=self.dropout_prob, \
+                               activation=clipped_rectify)
         self.Project = Dense(self.size, self.size_out)
-        self.params = params(self.Encode, self.Project)
+        self.params = params(self.Encode, self.Stack, self.Project)
 
     def __call__(self, inp):
-        return self.Project(last(self.Encode(inp)))
+        return self.Project(self.Stack(last(self.Encode(inp))))
 
 class LM(Layer):
     """Predict next word in sequence of outputs.
@@ -65,12 +90,13 @@ class Multitask(Layer):
     """Visual encoder combined with a textual task."""
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth, textual,
+                 out_depth=1,
                  gru_activation=tanh,
                  visual_activation=linear,
                  dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
-        self.Visual  = Visual(self.size_embed, self.size, self.size_out, self.depth,
+        self.Visual  = Visual(self.size_embed, self.size, self.size_out, self.depth, out_depth=self.out_depth,
                               gru_activation=self.gru_activation, dropout_prob=self.dropout_prob)
         self.Textual = textual(self.size_embed, self.size, self.depth,
                                gru_activation=self.gru_activation, dropout_prob=self.dropout_prob)
@@ -127,11 +153,13 @@ def MultitaskED(size_vocab, size_embed, size, size_out, depth, **kwargs):
 class Imaginet(object):
     """Trainable imaginet model."""
 
-    def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5, 
+    def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5,
+                 out_depth=1,
                  gru_activation=tanh, visual_activation=linear, cost_visual=CosineDistance,
                  max_norm=None, dropout_prob=0.0):
         autoassign(locals())
         self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth, 
+                               out_depth=self.out_depth,
                                gru_activation=self.gru_activation, visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob )
                                

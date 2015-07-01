@@ -13,7 +13,7 @@ import sys
 import os
 import copy
 import funktional.util as util
-from funktional.util import linear, clipped_rectify, grouper, pad, autoassign
+from funktional.util import linear, clipped_rectify, grouper, pad, autoassign, CosineDistance
 from collections import Counter
 import data_provider as dp
 #from funktional.layer import 
@@ -138,12 +138,14 @@ def cmd_train( dataset='coco',
                datapath='.',
                model_path='.',
                hidden_size=1024,
+               out_depth=1,
                gru_activation=clipped_rectify,
                visual_activation=linear,
                max_norm=None,
                embedding_size=None,
                depth=1,
                scaler=None,
+               cost_visual=CosineDistance,
                seed=None,
                shuffle=False,
                with_para='auto',
@@ -170,7 +172,9 @@ def cmd_train( dataset='coco',
                      size_out=4096,
                      depth=depth,
                      network=architecture,
+                     cost_visual=cost_visual,
                      alpha=alpha,
+                     out_depth=out_depth,
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
                      max_norm=max_norm,
