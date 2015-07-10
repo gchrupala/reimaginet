@@ -230,12 +230,19 @@ def cmd_eval(dataset='coco',
     sents  = list(prov.iterSentences(split='val'))
     images = list(prov.iterImages(split='val'))
     img_fs = list(scaler.transform([ image['feat'] for image in images ]))
-    correct = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
+    correct_img = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
                               for j in range(len(images)) ]
                             for i in range(len(sents)) ])
-    r = evaluate.ranking(img_fs, preds, correct, ns=(1,5,10), exclude_self=False)
+    correct_para = numpy.array([ [ sents[i]['imgid'] == sents[j]['imgid']
+                               for j in range(len(sents)) ]
+                            for i in range(len(sents)) ])
+    r_img = evaluate.ranking(img_fs, preds, correct_img, ns=(1,5,10), exclude_self=False)
+    r_para = evaluate.ranking(preds, preds, correct_para, ns=(1,5,10), exclude_self=True)
+    r = {'img':r_img, 'para':r_para}
     json.dump(r, open(output, 'w'))
-    print 'median_rank', numpy.median(r['ranks'])
-    for n in (1,5,10):
-        print 'recall@{}'.format(n), numpy.mean(r['recall'][n])
-        sys.stdout.flush()
+    for mode in ['img', 'para']:
+        print '{} median_rank'.format(mode), numpy.median(r[mode]['ranks'])
+        for n in (1,5,10):
+            print '{} recall@{}'.format(mode, n), numpy.mean(r[mode]['recall'][n])
+            sys.stdout.flush()
+
