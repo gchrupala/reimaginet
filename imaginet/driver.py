@@ -16,9 +16,9 @@ import funktional.util as util
 from funktional.util import linear, clipped_rectify, grouper, pad, autoassign, CosineDistance
 from collections import Counter
 import data_provider as dp
-#from funktional.layer import 
-from models import Imaginet, MultitaskLM, MultitaskED, predictor_v
+from models import Imaginet, MultitaskLM, predictor_v
 import evaluate
+from tokens import tokenize
 import json
 from  sklearn.preprocessing import StandardScaler
 
@@ -115,30 +115,35 @@ class Data(object):
                     protocol=pickle.HIGHEST_PROTOCOL)
         pickle.dump(self.mapper, gzip.open(os.path.join(model_path, 'mapper.pkl.gz'),'w'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-            
+
+def tokens(sent):
+    return tokenize(sent['raw'])
+    # return sent['tokens']
+                    
         
 def arrange_para_rand(data):
     for image in data:
         for sent_in in image['sentences']:
             sent_out = random.choice(image['sentences'])
-            yield (sent_in['tokens'], sent_out['tokens'], image['feat'])
+            yield (tokens(sent_in), tokens(sent_out), image['feat'])
             
 def arrange_para(data):
     for image in data:
         for sent_in in image['sentences']:
             for sent_out in image['sentences']:
-                yield (sent_in['tokens'], sent_out['tokens'], image['feat'])
+                yield (tokens(sent_in), tokens(sent_out), image['feat'])
                 
 def arrange_auto(data):
     for image in data:
         for sent in image['sentences']:
-            yield (sent['tokens'], sent['tokens'], image['feat'])
+            yield (tokens(sent), tokens(sent), image['feat'])
+
+            
     
 def cmd_train( dataset='coco',
                datapath='.',
                model_path='.',
                hidden_size=1024,
-               out_depth=1,
                gru_activation=clipped_rectify,
                visual_activation=linear,
                max_norm=None,
@@ -174,11 +179,9 @@ def cmd_train( dataset='coco',
                      network=architecture,
                      cost_visual=cost_visual,
                      alpha=alpha,
-                     out_depth=out_depth,
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
-                     max_norm=max_norm,
-                     dropout_prob=dropout_prob)
+                     max_norm=max_norm)
     with open(logfile, 'w') as log:
         for epoch in range(1, epochs + 1):
             costs = Counter()
@@ -235,3 +238,4 @@ def cmd_eval(dataset='coco',
     print 'median_rank', numpy.median(r['ranks'])
     for n in (1,5,10):
         print 'recall@{}'.format(n), numpy.mean(r['recall'][n])
+        sys.stdout.flush()

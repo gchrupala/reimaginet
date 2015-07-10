@@ -1,5 +1,6 @@
 # Code adapted from https://github.com/IndicoDataSolutions/Passage
 # Copyright (c) 2015 IndicoDataSolutions
+import string
 def tokenize(text):
     punctuation = set(string.punctuation)
     punctuation.add('\n')
