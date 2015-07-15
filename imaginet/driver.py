@@ -63,7 +63,7 @@ def stats(c):
 
 class Data(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False):
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True):
         autoassign(locals())
         self.data = {}
         # TRAINING
@@ -73,10 +73,15 @@ class Data(object):
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='train'))))
         elif self.with_para == 'para_all':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='train'))))
-             
-        sents_in = self.mapper.fit_transform(sents_in)
+        if self.fit:
+            sents_in = self.mapper.fit_transform(sents_in)
+            imgs = self.scaler.fit_transform(imgs)
+        else:
+            sents_in = self.mapper.transform(sents_in)
+            imgs = self.scaler.transform(imgs)
+            
         sents_out = self.mapper.transform(sents_out)
-        imgs = self.scaler.fit_transform(imgs)
+
         self.data['train'] = zip(sents_in, sents_out, imgs)
         # VALIDATION
         if self.with_para == 'para_rand':
@@ -139,7 +144,29 @@ def arrange_auto(data):
             yield (tokens(sent), tokens(sent), image['feat'])
 
             
-    
+def cmd_train_resume( dataset='coco',
+                      datapath='.',
+                      model_path='.',
+                      model_name='model.pkl.gz',
+                      seed=None,
+                      shuffle=False,
+                      with_para='auto',
+                      start_epoch=1,
+                      epochs=1,
+                      batch_size=64,
+                      validate_period=64*100,
+                      logfile='log.txt'):
+    def load(f):
+        return pickle.load(gzip.open(os.path.join(model_path, f)))
+    sys.setrecursionlimit(50000)
+    if seed is not None:
+        random.seed(seed)
+    prov = dp.getDataProvider(dataset, root=datapath)
+    mapper, scaler, model = map(load, ['mapper.pkl.gz', 'scaler.pkl.gz', model_name])
+    data = Data(prov, mapper, scaler, batch_size=batch_size, with_para=with_para,
+                shuffle=shuffle, fit=False)
+    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
+                      
 def cmd_train( dataset='coco',
                datapath='.',
                model_path='.',
@@ -182,8 +209,11 @@ def cmd_train( dataset='coco',
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
                      max_norm=max_norm)
+    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
+    
+def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data):
     with open(logfile, 'w') as log:
-        for epoch in range(1, epochs + 1):
+        for epoch in range(start_epoch, epochs + 1):
             costs = Counter()
             N = 0
             for _j, item in enumerate(data.iter_train_batches()):
