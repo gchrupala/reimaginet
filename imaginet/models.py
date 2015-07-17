@@ -22,13 +22,16 @@ class Visual(Layer):
                  gru_activation=clipped_rectify,
                  visual_activation=linear):
         autoassign(locals())
-        self.EncodeV = StackedGRUH0(self.size_embed, self.size, self.depth,
+        self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth,
                                      activation=self.gru_activation)
         self.ToImg   = Dense(self.size, self.size_out)
-        self.params  = params(self.EncodeV, self.ToImg)
+        self.params  = params(self.Encode, self.ToImg)
 
     def __call__(self, inp):
-        return self.visual_activation(self.ToImg(last(self.EncodeV(inp))))
+        return self.visual_activation(self.ToImg(last(self.Encode(inp))))
+
+    def encode(self, inp):
+        return last(self.Encode(inp))
             
 class MultitaskLM(Layer):
     """Visual encoder combined with a textual task."""
@@ -48,7 +51,7 @@ class MultitaskLM(Layer):
 
         
     def __call__(self, inp, output_prev, _img):
-        img_pred   = self.Visual(self.Embed(inp))
+        img_pred   = self.Visual.encode(self.Embed(inp))
         txt_pred   = softmax3d(self.Embed.unembed(self.ToTxt(self.LM(self.Embed(output_prev)))))
         return (img_pred, txt_pred)
 
@@ -89,7 +92,47 @@ class MultitaskLMC(Layer):
         input    = T.imatrix()
         return theano.function([input],
                          self.Visual(self.Embed(input)))
+
+class MultitaskLMD(Layer):
+    """Alternative visual encoder combined with a textual decoder.
+
+    Textual decoder starts from final state of encoder instead of from image.
+"""
     
+    def __init__(self, size_vocab, size_embed, size, size_out, depth,
+                 gru_activation=clipped_rectify,
+                 visual_activation=linear):
+        autoassign(locals())
+        self.Embed   =  Embedding(self.size_vocab, self.size_embed)
+        self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
+                               gru_activation=self.gru_activation,
+                               visual_activation=self.visual_activation)
+        self.LM      =  StackedGRU(self.size_embed, self.size, self.depth,
+                                     activation=self.gru_activation)
+        #self.FromImg =  Dense(self.size_out, self.size)
+        self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
+        self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
+
+        
+    def __call__(self, inp, output_prev, img):
+        rep        = self.Visual.encode(self.Embed(inp))
+        img_pred   = self.Visual.visual_activation(self.Visual.ToImg(rep))
+        txt_pred   = softmax3d(self.Embed.unembed(self.ToTxt(self.LM(rep,
+                                                                     self.Embed(output_prev)))))
+        return (img_pred, txt_pred)
+
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input],
+                         self.Visual(self.Embed(input)))
+
+    def predictor_r(self):
+        """Return function to predict representation from input."""
+        input = T.imatrix()
+        return theano.function([input], self.Visual.encode(self.Embed(input)))
+
 class Imaginet(object):
     """Trainable imaginet model."""
 
@@ -133,4 +176,6 @@ def predictor_v(model):
     """Return function to predict image vector from input using `model`."""
     return model.network.predictor_v()
 
-    
+def predictor_r(model):
+    """Return function to predict representation from input using `model`."""
+    return model.network.predictor_r()
