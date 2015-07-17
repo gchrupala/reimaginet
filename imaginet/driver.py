@@ -16,7 +16,7 @@ import funktional.util as util
 from funktional.util import linear, clipped_rectify, grouper, pad, autoassign, CosineDistance
 from collections import Counter
 import data_provider as dp
-from models import Imaginet, MultitaskLM, predictor_v
+from models import Imaginet, MultitaskLM, predictor_v, predictor_r
 import evaluate
 from tokens import tokenize
 import json
@@ -209,6 +209,7 @@ def cmd_train( dataset='coco',
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
                      max_norm=max_norm)
+    start_epoch=1
     do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
     
 def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data):
@@ -236,26 +237,32 @@ def cmd_predict_v(dataset='coco',
                   model_path='.',
                   model_name='model.pkl.gz',
                   batch_size=128,
-                  output='predict_v.npy'):
+                  output_v='predict_v.npy',
+                  output_r='predict_r.npy'):
     def load(f):
         return pickle.load(gzip.open(os.path.join(model_path, f)))
     mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz', model_name])
     predict_v = predictor_v(model)
+    predict_r = predictor_r(model)
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
-    preds  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
+    preds_v  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
                             for batch in grouper(inputs, batch_size) ])
-    print preds.shape
-    numpy.save(os.path.join(model_path, output), preds)
+    numpy.save(os.path.join(model_path, output_v), preds_v)
+    preds_r = numpy.vstack([ predict_r(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
+                             for batch in grouper(inputs, batch_size) ])
+    numpy.save(os.path.join(model_path, output_r), preds_r)
     
 def cmd_eval(dataset='coco',
              datapath='.',
              scaler_path='scaler.pkl.gz',
-             input='predict_v.npy',
+             input_v='predict_v.npy',
+             input_r='predict_r.npy',
              output='eval.json'):
     scaler = pickle.load(gzip.open(scaler_path))
-    preds  = numpy.load(input)
+    preds_v  = numpy.load(input_v)
+    preds_r  = numpy.load(input_r)
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     images = list(prov.iterImages(split='val'))
@@ -266,11 +273,12 @@ def cmd_eval(dataset='coco',
     correct_para = numpy.array([ [ sents[i]['imgid'] == sents[j]['imgid']
                                for j in range(len(sents)) ]
                             for i in range(len(sents)) ])
-    r_img = evaluate.ranking(img_fs, preds, correct_img, ns=(1,5,10), exclude_self=False)
-    r_para = evaluate.ranking(preds, preds, correct_para, ns=(1,5,10), exclude_self=True)
-    r = {'img':r_img, 'para':r_para}
+    r_img = evaluate.ranking(img_fs, preds_v, correct_img, ns=(1,5,10), exclude_self=False)
+    r_para_v = evaluate.ranking(preds_v, preds_v, correct_para, ns=(1,5,10), exclude_self=True)
+    r_para_r  = evaluate.ranking(preds_r, preds_r, correct_para, ns=(1,5,10), exclude_self=True)
+    r = {'img':r_img, 'para_v':r_para_v,'para_r':r_para_r }
     json.dump(r, open(output, 'w'))
-    for mode in ['img', 'para']:
+    for mode in ['img', 'para_v', 'para_r']:
         print '{} median_rank'.format(mode), numpy.median(r[mode]['ranks'])
         for n in (1,5,10):
             print '{} recall@{}'.format(mode, n), numpy.mean(r[mode]['recall'][n])
