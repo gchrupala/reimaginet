@@ -16,7 +16,7 @@ def ranking(candidates, vectors, correct, ns=[1,5,10], exclude_self=False):
     `correct[i][j]` indicates whether for vector i the candidate j is correct.
     """
     #distances = cdist(vectors, candidates, metric='cosine')
-    distances = Cdist()(vectors, candidates)
+    distances = Cdist(batch_size=2**13)(vectors, candidates)
     result = {'ranks' : [] , 'precision' : {}, 'recall' : {}, 'overlap' : {} }
     for n in ns:
         result['precision'][n] = []
@@ -40,7 +40,8 @@ def ranking(candidates, vectors, correct, ns=[1,5,10], exclude_self=False):
 
 class Cdist():
     """Return cosine distances between two sets of vectors."""
-    def __init__(self):
+    def __init__(self, batch_size=None):
+        self.batch_size = batch_size
         self.U = T.matrix('U')
         self.V = T.matrix('V')
         self.U_norm = self.U / self.U.norm(2, axis=1).reshape((self.U.shape[0], 1))
@@ -50,4 +51,10 @@ class Cdist():
         self.cosine = theano.function([self.U, self.V], self.W)
 
     def __call__(self, A, B):
-        return 1 - self.cosine(A, B)
+        if self.batch_size is None:
+            chunks = [A]
+        else:
+            chunks  = numpy.split(A, [i for i
+                                      in range(self.batch_size, A.shape[0], self.batch_size) ])
+        cosines = numpy.vstack([self.cosine(chunk, B) for chunk in chunks])                    
+        return 1 - cosines 
