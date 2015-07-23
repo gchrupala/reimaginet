@@ -13,7 +13,7 @@ import sys
 import os
 import copy
 import funktional.util as util
-from funktional.util import linear, clipped_rectify, grouper, pad, autoassign, CosineDistance
+from funktional.util import linear, clipped_rectify, grouper, autoassign, CosineDistance
 from collections import Counter
 import data_provider as dp
 from models import Imaginet, MultitaskLM, predictor_v, predictor_r
@@ -21,6 +21,12 @@ import evaluate
 from tokens import tokenize
 import json
 from  sklearn.preprocessing import StandardScaler
+
+def pad(xss, padding): # PAD AT BEGINNING
+    max_len = max((len(xs) for xs in xss))
+    def pad_one(xs):
+        return [ padding for _ in range(0,(max_len-len(xs))) ] + xs
+    return [ pad_one(xs) for xs in xss ]
 
 def batch_inp(sents, BEG, END):
     mb = padder(sents, BEG, END)
@@ -106,13 +112,16 @@ class Data(object):
             return zs
         
     def iter_train_batches(self):
-        for item in grouper(self.data['train'], self.batch_size):
-            yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+        for bunch in grouper(self.data['train'], self.batch_size*20):
+            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
+            for item in grouper(bunch_sort, self.batch_size):
+                yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
         
     def iter_valid_batches(self):
-
-        for item in grouper(self.data['valid'], self.batch_size):
-            yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+        for bunch in grouper(self.data['valid'], self.batch_size*20):
+            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
+            for item in grouper(bunch_sort, self.batch_size):
+                yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
 
     def dump(self, model_path):
         """Write mapper and scaler to disc."""
