@@ -22,28 +22,38 @@ from tokens import tokenize
 import json
 from  sklearn.preprocessing import StandardScaler
 
-def pad(xss, padding): # PAD AT BEGINNING
-    max_len = max((len(xs) for xs in xss))
-    def pad_one(xs):
-        return [ padding for _ in range(0,(max_len-len(xs))) ] + xs
-    return [ pad_one(xs) for xs in xss ]
+class Batcher(object):
 
-def batch_inp(sents, BEG, END):
-    mb = padder(sents, BEG, END)
-    return mb[:,1:]
+    def __init__(self, mapper, pad_end=False):
+        self.pad_end = pad_end
+        self.mapper = mapper
+        self.BEG = self.mapper.BEG_ID
+        self.END = self.mapper.END_ID
+        
+    def pad(self, xss): # PAD AT BEGINNING
+        max_len = max((len(xs) for xs in xss))
+        def pad_one(xs):
+            if self.pad_end:
+                return xs + [ self.END for _ in range(0,(max_len-len(xs))) ] 
+            return [ self.BEG for _ in range(0,(max_len-len(xs))) ] + xs
+        return [ pad_one(xs) for xs in xss ]
 
-def padder(sents, BEG, END):
-    return numpy.array(pad([[BEG]+sent+[END] for sent in sents], END), dtype='int32')
+    def batch_inp(self, sents):
+        mb = self.padder(sents)
+        return mb[:,1:]
 
-def batch(item, BEG, END):
-    """Prepare minibatch."""
-    mb_inp = padder([s for s,_,_ in item], BEG, END)
-    mb_out_t = padder([r for _,r,_ in item], BEG, END)
-    inp = mb_inp[:,1:]
-    out_t = mb_out_t[:,1:]
-    out_prev_t = mb_out_t[:,0:-1]
-    out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
-    return (inp, out_v, out_prev_t, out_t)
+    def padder(self, sents):
+        return numpy.array(self.pad([[self.BEG]+sent+[self.END] for sent in sents]), dtype='int32')
+
+    def batch(self, item):
+        """Prepare minibatch."""
+        mb_inp = self.padder([s for s,_,_ in item])
+        mb_out_t = self.padder([r for _,r,_ in item])
+        inp = mb_inp[:,1:]
+        out_t = mb_out_t[:,1:]
+        out_prev_t = mb_out_t[:,0:-1]
+        out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
+        return (inp, out_v, out_prev_t, out_t)
     
 def valid_loss(model, data):
     """Apply model to validation data and return loss info."""
@@ -69,7 +79,7 @@ def stats(c):
 
 class Data(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True):
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True, pad_end=False):
         autoassign(locals())
         self.data = {}
         # TRAINING
@@ -101,7 +111,7 @@ class Data(object):
         sents_out = self.mapper.transform(sents_out)
         imgs = self.scaler.transform(imgs)
         self.data['valid'] = zip(sents_in, sents_out, imgs)
-
+        self.batcher = Batcher(self.mapper, self.pad_end)
         
     def shuffled(self, xs):
         if not self.shuffle:
@@ -115,19 +125,21 @@ class Data(object):
         for bunch in grouper(self.data['train'], self.batch_size*20):
             bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
             for item in grouper(bunch_sort, self.batch_size):
-                yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+                yield self.batcher.batch(item)
         
     def iter_valid_batches(self):
         for bunch in grouper(self.data['valid'], self.batch_size*20):
             bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
             for item in grouper(bunch_sort, self.batch_size):
-                yield batch(item, self.mapper.BEG_ID, self.mapper.END_ID)
+                yield self.batcher.batch(item)
 
     def dump(self, model_path):
         """Write mapper and scaler to disc."""
         pickle.dump(self.scaler, gzip.open(os.path.join(model_path, 'scaler.pkl.gz'), 'w'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-        pickle.dump(self.mapper, gzip.open(os.path.join(model_path, 'mapper.pkl.gz'),'w'),
+#        pickle.dump(self.mapper, gzip.open(os.path.join(model_path, 'mapper.pkl.gz'),'w'),
+#                    protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(self.batcher, gzip.open(os.path.join(model_path, 'batcher.pkl.gz'), 'w'),
                     protocol=pickle.HIGHEST_PROTOCOL)
 
 def tokens(sent):
@@ -171,8 +183,8 @@ def cmd_train_resume( dataset='coco',
     if seed is not None:
         random.seed(seed)
     prov = dp.getDataProvider(dataset, root=datapath)
-    mapper, scaler, model = map(load, ['mapper.pkl.gz', 'scaler.pkl.gz', model_name])
-    data = Data(prov, mapper, scaler, batch_size=batch_size, with_para=with_para,
+    batcher, scaler, model = map(load, ['batcher.pkl.gz', 'scaler.pkl.gz', model_name])
+    data = Data(prov, batcher.mapper, scaler, batch_size=batch_size, with_para=with_para,
                 shuffle=shuffle, fit=False)
     do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
                       
@@ -195,6 +207,7 @@ def cmd_train( dataset='coco',
                alpha=0.1,
                epochs=1,
                batch_size=64,
+               pad_end=False,
                validate_period=64*100,
                logfile='log.txt'):
     sys.setrecursionlimit(50000) # needed for pickling models
@@ -250,16 +263,17 @@ def cmd_predict_v(dataset='coco',
                   output_r='predict_r.npy'):
     def load(f):
         return pickle.load(gzip.open(os.path.join(model_path, f)))
-    mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz', model_name])
+    batcher, scaler, model = map(load, ['batcher.pkl.gz','scaler.pkl.gz', model_name])
+    mapper = batcher.mapper
     predict_v = predictor_v(model)
     predict_r = predictor_r(model)
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
-    preds_v  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
+    preds_v  = numpy.vstack([ predict_v(batcher.batch_inp(batch))
                             for batch in grouper(inputs, batch_size) ])
     numpy.save(os.path.join(model_path, output_v), preds_v)
-    preds_r = numpy.vstack([ predict_r(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
+    preds_r = numpy.vstack([ predict_r(batcher.batch_inp(batch))
                              for batch in grouper(inputs, batch_size) ])
     numpy.save(os.path.join(model_path, output_r), preds_r)
     
