@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy
-from funktional.layer import Layer, Dense, OneHot, Dropout
+from funktional.layer import Layer, Dense, OneHot, Dropout, WithDropout
 from funktional.util import softmax, tanh, grouper, autoassign, CrossEntropy, Adam
 import funktional.util as util
 import theano
@@ -24,9 +24,9 @@ class Classify(Layer):
     def __init__(self, size_repr, size_hidden=200, size_classify=3, activation=tanh, dropout=0.0):
         autoassign(locals())
         self.Dropout = Dropout(prob=self.dropout)
-        self.L1 = Dense(self.size_repr * 2, self.size_hidden)
-        self.L2 = Dense(self.size_hidden, self.size_hidden)
-        self.L3 = Dense(self.size_hidden, self.size_hidden)
+        self.L1 = WithDropout(Dense(self.size_repr * 2, self.size_hidden), prob=dropout)
+        self.L2 = WithDropout(Dense(self.size_hidden, self.size_hidden), prob=dropout)
+        self.L3 = WithDropout(Dense(self.size_hidden, self.size_hidden), prob=dropout)
         self.classify = Dense(self.size_hidden, self.size_classify)
         self.params = util.params(self.Dropout, self.L1, self.L2, self.L3, self.classify)
         #self.names  = ###

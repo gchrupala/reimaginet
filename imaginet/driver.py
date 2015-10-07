@@ -166,6 +166,7 @@ def arrange_auto(data):
 
             
 def cmd_train_resume( dataset='coco',
+                      extra_train=False,
                       datapath='.',
                       model_path='.',
                       model_name='model.pkl.gz',
@@ -182,13 +183,14 @@ def cmd_train_resume( dataset='coco',
     sys.setrecursionlimit(50000)
     if seed is not None:
         random.seed(seed)
-    prov = dp.getDataProvider(dataset, root=datapath)
+    prov = dp.getDataProvider(dataset, root=datapath, extra_train=extra_train)
     batcher, scaler, model = map(load, ['batcher.pkl.gz', 'scaler.pkl.gz', model_name])
     data = Data(prov, batcher.mapper, scaler, batch_size=batch_size, with_para=with_para,
                 shuffle=shuffle, fit=False)
     do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
                       
 def cmd_train( dataset='coco',
+               extra_train=False,
                datapath='.',
                model_path='.',
                hidden_size=1024,
@@ -213,7 +215,7 @@ def cmd_train( dataset='coco',
     sys.setrecursionlimit(50000) # needed for pickling models
     if seed is not None:
         random.seed(seed)
-    prov = dp.getDataProvider(dataset, root=datapath)
+    prov = dp.getDataProvider(dataset, root=datapath, extra_train=extra_train)
     mapper = util.IdMapper(min_df=10)
     embedding_size = embedding_size if embedding_size is not None else hidden_size
     scaler = StandardScaler() if scaler == 'standard' else NoScaler()
