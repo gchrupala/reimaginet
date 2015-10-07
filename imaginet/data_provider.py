@@ -7,9 +7,10 @@ import random
 import scipy.io
 import codecs
 from collections import defaultdict
+import itertools
 
 class BasicDataProvider:
-  def __init__(self, dataset, root='.'):
+  def __init__(self, dataset, root='.', extra_train=False):
     
     self.root = root
     # !assumptions on folder structure
@@ -30,6 +31,8 @@ class BasicDataProvider:
     # group images by their train/val/test split into a dictionary -> list structure
     self.split = defaultdict(list)
     for img in self.dataset['images']:
+      if extra_train and img['split'] == 'restval':
+        img['split']='train'
       self.split[img['split']].append(img)
 
   # "PRIVATE" FUNCTIONS
@@ -113,7 +116,46 @@ class BasicDataProvider:
     for i in ix:
       yield self._getImage(imglist[i])
 
-def getDataProvider(dataset, root='.'):
+def getDataProvider(dataset, root='.', extra_train=False):
   """ we could intercept a special dataset and return different data providers """
-  assert dataset in ['flickr8k', 'flickr30k', 'coco'], 'dataset %s unknown' % (dataset, )
-  return BasicDataProvider(dataset, root)
+  assert dataset in ['flickr8k', 'flickr30k', 'coco', 'coco+flickr30k'], 'dataset %s unknown' % (dataset, )
+  if dataset == 'coco+flickr30k':
+    return CombinedDataProvider(datasets=['coco', 'flickr30k'], root=root, extra_train=extra_train)
+  else:
+    return BasicDataProvider(dataset, root, extra_train=extra_train)
+
+class CombinedDataProvider(object):
+
+  def __init__(self, datasets, root='.', extra_train=False):
+    self.datasets = datasets
+    self.root = root
+    self.providers = [ BasicDataProvider(dataset, root=self.root, extra_train=extra_train)
+                       for dataset in self.datasets ]
+
+  def getSplitSize(self, split, ofwhat='sentences'):
+    return sum((p.getSplitSize(split, ofwhat=ofwhat) for p in self.providers))
+
+  def sampleImageSentencePair(self, split='train'):
+    raise NotImplementedError()
+
+  def iterImageSentencesPair(self, split='train', max_images=-1):
+    iters = [ p.iterImageSentencePair(split=split, max_images=-1) for p in self.providers ]
+    for item in itertools.chain(*iters):
+      yield item
+
+  def iterImageSentencePairBatch(self, split='train', max_images=-1, max_batch_size = 100):
+    iters = [ p.iterImageSentencePairBatch(split=split, max_images=max_images, max_batch_size=max_batch_size) for p in self.providers ]
+    for item in itertools.chain(*iters):
+      yield item
+
+  def iterSentences(self, split = 'train'):
+    iters = [ p.iterSentences(split=split) for p in self.providers ]
+    for item in itertools.chain(*iters):
+      yield item
+
+  def iterImages(self, split = 'train', max_images = -1):
+    iters = [ p.iterImages(split=split, max_images=max_images) for p in self.providers ]
+    for item in itertools.chain(*iters):
+      yield item
+    
+  
