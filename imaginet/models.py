@@ -181,7 +181,7 @@ class Imaginet(object):
 
     def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5,
                  gru_activation=clipped_rectify, visual_activation=linear, cost_visual=CosineDistance,
-                 max_norm=None):
+                 max_norm=None, lr=0.0002):
         autoassign(locals())
         self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,                                gru_activation=self.gru_activation, visual_activation=self.visual_activation)
                                
@@ -203,7 +203,7 @@ class Imaginet(object):
             cost_T_test = CrossEntropy(output_t_oh, output_t_pred_test)
             cost_V_test = self.cost_visual(output_v, output_v_pred_test)
             cost_test = self.alpha * cost_T_test + (1.0 - self.alpha) * cost_V_test
-        self.updater = util.Adam(max_norm=self.max_norm)
+        self.updater = util.Adam(max_norm=self.max_norm, lr=self.lr)
         updates = self.updater.get_updates(self.network.params, cost, disconnected_inputs='warn')
         # TODO better way of dealing with needed/unneeded output_t_prev?
         self.train = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],

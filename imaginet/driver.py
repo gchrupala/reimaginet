@@ -197,6 +197,7 @@ def cmd_train( dataset='coco',
                gru_activation=clipped_rectify,
                visual_activation=linear,
                max_norm=None,
+               lr=0.0002,
                embedding_size=None,
                depth=1,
                scaler=None,
@@ -232,7 +233,8 @@ def cmd_train( dataset='coco',
                      alpha=alpha,
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
-                     max_norm=max_norm)
+                     max_norm=max_norm,
+                     lr=lr)
     start_epoch=1
     do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
     
