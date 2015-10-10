@@ -20,7 +20,7 @@ import sklearn.metrics as metrics
 
 class Classify(Layer):
 
-    """Classifier for Textual entailment."""
+    """3-layer classifier with dropout."""
     def __init__(self, size_repr, size_hidden=200, size_classify=3, activation=tanh, dropout=0.0):
         autoassign(locals())
         self.Dropout = Dropout(prob=self.dropout)
@@ -38,13 +38,32 @@ class Classify(Layer):
             self.activation(self.L2(
             self.activation(self.L1(self.Dropout(inp)))))))))
 
+class LinearClassify(Layer):
+
+    """Linear classifier with dropout."""
+    def __init__(self, size_repr, size_classify=3, dropout=0.0):
+        autoassign(locals())
+        self.Dropout = Dropout(prob=self.dropout)
+        self.classify = Dense(self.size_repr * 2, self.size_classify)
+        self.params = util.params(self.Dropout, self.classify)
+        #self.names  = ###
+
+    def __call__(self, premise, hypo):
+        inp = T.concatenate([premise * hypo, abs(premise - hypo)], axis=1) # features
+        return softmax(self.classify(self.Dropout(inp)))
+    
 class RTE(object):
     """Trainable RTE classifier."""
-    def __init__(self, size_repr=1024, size_hidden=200, dropout=0.0):
+    def __init__(self, size_repr=1024, size_hidden=200, dropout=0.0, lr=0.0002):
         autoassign(locals())
         self.size_classify = 3
-        self.network = Classify(size_repr=self.size_repr, size_hidden=self.size_hidden,
-                                size_classify=self.size_classify, activation=tanh, dropout=self.dropout)
+        if self.size_hidden is None:
+            self.network = LinearClassify(size_repr=self.size_repr, size_classify=self.size_classify,
+                                          dropout=self.dropout)
+        else:
+            self.network = Classify(size_repr=self.size_repr, size_hidden=self.size_hidden,
+                                    size_classify=self.size_classify, activation=tanh,
+                                    dropout=self.dropout)
         premise = T.fmatrix()
         hypo    = T.fmatrix()
         target  = T.fmatrix() # should be one hot
@@ -54,12 +73,14 @@ class RTE(object):
         with context.context(training=False):
             predicted_test = self.network(premise, hypo)
             cost_test = CrossEntropy(target, predicted_test)
-        self.updater = Adam()
+        self.updater = Adam(lr=self.lr)
         updates = self.updater.get_updates(self.network.params, cost, disconnected_inputs='error')
         self.train = theano.function([premise, hypo, target], cost, updates=updates)
         self.loss_test = theano.function([premise, hypo, target], cost_test)
         self.predict = theano.function([premise, hypo] , predicted_test)
+
         
+
 def cmd_predict_r(model_path='.', 
                   batch_size=128,
                   split='train',
@@ -99,6 +120,7 @@ def parse_snli(split='train', path='/home/gchrupala/repos/reimaginet/data/snli_1
 def cmd_train_rte(data_path='.',
                   size=200,
                   dropout=0.0,
+                  lr=0.0002,
                   epochs=1,
                   batch_size=64,
                   model_path='.',
@@ -114,7 +136,7 @@ def cmd_train_rte(data_path='.',
     val_hypo_r  = numpy.load(os.path.join(data_path, "dev_predict_hypo_r.npy"))
     val_labels = onehot(numpy.load(os.path.join(data_path, "dev_entailment_labels.npy")), classify_size)
     size_repr = premise_r.shape[1]
-    model = RTE(size_repr=size_repr, size_hidden=size, dropout=dropout)
+    model = RTE(size_repr=size_repr, size_hidden=size, dropout=dropout, lr=lr)
     start_epoch=1
     for epoch in range(start_epoch, epochs+1):
         costs = Counter()
