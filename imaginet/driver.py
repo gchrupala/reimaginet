@@ -79,16 +79,19 @@ def stats(c):
 
 class Data(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True, pad_end=False):
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True, pad_end=False, reverse=False):
         autoassign(locals())
         self.data = {}
         # TRAINING
         if self.with_para == 'para_rand':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='train'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='train'),
+                                                                             reverse=self.reverse)))
         elif self.with_para == 'auto':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='train'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='train'),
+                                                                        reverse=self.reverse)))
         elif self.with_para == 'para_all':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='train'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='train'),
+                                                                        reverse=self.reverse)))
         if self.fit:
             sents_in = self.mapper.fit_transform(sents_in)
             imgs = self.scaler.fit_transform(imgs)
@@ -101,11 +104,14 @@ class Data(object):
         self.data['train'] = zip(sents_in, sents_out, imgs)
         # VALIDATION
         if self.with_para == 'para_rand':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='val'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='val'),
+                                                                             reverse=self.reverse)))
         elif self.with_para == 'auto':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='val'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='val'),
+                                                                        reverse=self.reverse)))
         elif self.with_para == 'para_all':
-            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='val'))))
+            sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='val'),
+                                                                        reverse=self.reverse)))
 
         sents_in = self.mapper.transform(sents_in)
         sents_out = self.mapper.transform(sents_out)
@@ -147,22 +153,22 @@ def tokens(sent):
     # return sent['tokens']
                     
         
-def arrange_para_rand(data):
+def arrange_para_rand(data, reverse=False):
     for image in data:
         for sent_in in image['sentences']:
             sent_out = random.choice(image['sentences'])
-            yield (tokens(sent_in), tokens(sent_out), image['feat'])
+            yield (tokens(sent_in), list(reversed(tokens(sent_out))) if reverse else tokens(sent_out) , image['feat'])
             
-def arrange_para(data):
+def arrange_para(data, reverse=False):
     for image in data:
         for sent_in in image['sentences']:
             for sent_out in image['sentences']:
-                yield (tokens(sent_in), tokens(sent_out), image['feat'])
+                yield (tokens(sent_in), list(reversed(tokens(sent_out))) if reverse else tokens(send_out), image['feat'])
                 
-def arrange_auto(data):
+def arrange_auto(data, reverse=False):
     for image in data:
         for sent in image['sentences']:
-            yield (tokens(sent), tokens(sent), image['feat'])
+            yield (tokens(sent), list(reversed(tokens(sent))) if reverse else tokens(sent), image['feat'])
 
             
 def cmd_train_resume( dataset='coco',
@@ -204,6 +210,7 @@ def cmd_train( dataset='coco',
                cost_visual=CosineDistance,
                seed=None,
                shuffle=False,
+               reverse=False,
                with_para='auto',
                architecture=MultitaskLM,
                dropout_prob=0.0,
@@ -221,7 +228,7 @@ def cmd_train( dataset='coco',
     embedding_size = embedding_size if embedding_size is not None else hidden_size
     scaler = StandardScaler() if scaler == 'standard' else NoScaler()
     data = Data(prov, mapper, scaler, batch_size=batch_size, with_para=with_para,
-                shuffle=shuffle)
+                shuffle=shuffle, reverse=reverse)
     data.dump(model_path)
     model = Imaginet(size_vocab=mapper.size(),
                      size_embed=embedding_size,
@@ -243,12 +250,20 @@ def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model
         for epoch in range(start_epoch, epochs + 1):
             costs = Counter()
             N = 0
+            # recent = []
             for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
                 inp, out_v, out_prev_t, out_t = item
                 cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
+                #recent = recent[-5:];recent.append(costs['cost']/costs['N'])
                 print epoch, j, j*batch_size, "train", stats(costs)
+                # check if cost diverges
+                # if len(recent) >= 5 and recent[-1] > recent[0]:
+                #     model.updater.lr = model.updater.lr / 2
+                #     print epoch, j, j*batch_size, "lrate", model.updater.lr, recent
+                #     recent = []
+                 
                 if j*batch_size % validate_period == 0:
                     costs_valid = valid_loss(model, data)
                     print epoch, j, j, "valid", stats(costs_valid)
