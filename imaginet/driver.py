@@ -21,6 +21,7 @@ import evaluate
 from tokens import tokenize
 import json
 from  sklearn.preprocessing import StandardScaler
+import string
 
 class Batcher(object):
 
@@ -79,19 +80,26 @@ def stats(c):
 
 class Data(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False, fit=True, pad_end=False, reverse=False):
+    def __init__(self, provider, mapper, scaler, batch_size=64, with_para='auto', shuffle=False,
+                 fit=True, pad_end=False, reverse=False, tokenizer='word'):
         autoassign(locals())
         self.data = {}
         # TRAINING
         if self.with_para == 'para_rand':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='train'),
-                                                                             reverse=self.reverse)))
+                                                                             reverse=self.reverse,
+                                                                             tokenizer=self.tokenizer
+                                                                         )))
         elif self.with_para == 'auto':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='train'),
-                                                                        reverse=self.reverse)))
+                                                                        reverse=self.reverse,
+                                                                        tokenizer=self.tokenizer
+                                                                    )))
         elif self.with_para == 'para_all':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='train'),
-                                                                        reverse=self.reverse)))
+                                                                        reverse=self.reverse,
+                                                                        tokenize=self.tokenizer
+                                                                    )))
         if self.fit:
             sents_in = self.mapper.fit_transform(sents_in)
             imgs = self.scaler.fit_transform(imgs)
@@ -105,13 +113,16 @@ class Data(object):
         # VALIDATION
         if self.with_para == 'para_rand':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para_rand(provider.iterImages(split='val'),
-                                                                             reverse=self.reverse)))
+                                                                             reverse=self.reverse,
+                                                                             tokenizer=self.tokenizer)))
         elif self.with_para == 'auto':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_auto(provider.iterImages(split='val'),
-                                                                        reverse=self.reverse)))
+                                                                        reverse=self.reverse,
+                                                                        tokenizer=self.tokenizer)))
         elif self.with_para == 'para_all':
             sents_in, sents_out, imgs = zip(*self.shuffled(arrange_para(provider.iterImages(split='val'),
-                                                                        reverse=self.reverse)))
+                                                                        reverse=self.reverse,
+                                                                        tokenizer=self.tokenizer)))
 
         sents_in = self.mapper.transform(sents_in)
         sents_out = self.mapper.transform(sents_out)
@@ -148,27 +159,36 @@ class Data(object):
         pickle.dump(self.batcher, gzip.open(os.path.join(model_path, 'batcher.pkl.gz'), 'w'),
                     protocol=pickle.HIGHEST_PROTOCOL)
 
-def tokens(sent):
-    return tokenize(sent['raw'])
-    # return sent['tokens']
-                    
+def tokens(sent, tokenizer='word'):
+    if tokenizer == 'word':
+        return tokenize(sent['raw'])
+    elif tokenizer == 'word-clean':
+        return sent['tokens']
+    elif tokenizer == 'char':
+        return list(sent['raw'])
+    elif tokenizer == 'phon':
+        # remove spaces/punctuation, and lowercase
+        return [ c.lower() for c in sent['raw'] if c in string.letters ]
         
-def arrange_para_rand(data, reverse=False):
+def arrange_para_rand(data, reverse=False, tokenizer='word'):
     for image in data:
         for sent_in in image['sentences']:
             sent_out = random.choice(image['sentences'])
-            yield (tokens(sent_in), list(reversed(tokens(sent_out))) if reverse else tokens(sent_out) , image['feat'])
+            yield (tokens(sent_in, tokenizer=tokenizer),
+                   list(reversed(tokens(sent_out))) if reverse else tokens(sent_out) , image['feat'])
             
-def arrange_para(data, reverse=False):
+def arrange_para(data, reverse=False, tokenizer='word'):
     for image in data:
         for sent_in in image['sentences']:
             for sent_out in image['sentences']:
-                yield (tokens(sent_in), list(reversed(tokens(sent_out))) if reverse else tokens(send_out), image['feat'])
+                yield (tokens(sent_in, tokenizer=tokenizer),
+                       list(reversed(tokens(sent_out))) if reverse else tokens(send_out), image['feat'])
                 
-def arrange_auto(data, reverse=False):
+def arrange_auto(data, reverse=False, tokenizer='word'):
     for image in data:
         for sent in image['sentences']:
-            yield (tokens(sent), list(reversed(tokens(sent))) if reverse else tokens(sent), image['feat'])
+            yield (tokens(sent, tokenizer=tokenizer),
+                   list(reversed(tokens(sent))) if reverse else tokens(sent), image['feat'])
 
             
 def cmd_train_resume( dataset='coco',
@@ -212,6 +232,7 @@ def cmd_train( dataset='coco',
                shuffle=False,
                reverse=False,
                with_para='auto',
+               tokenizer='word',
                architecture=MultitaskLM,
                dropout_prob=0.0,
                alpha=0.1,
@@ -228,7 +249,7 @@ def cmd_train( dataset='coco',
     embedding_size = embedding_size if embedding_size is not None else hidden_size
     scaler = StandardScaler() if scaler == 'standard' else NoScaler()
     data = Data(prov, mapper, scaler, batch_size=batch_size, with_para=with_para,
-                shuffle=shuffle, reverse=reverse)
+                shuffle=shuffle, reverse=reverse, tokenizer=tokenizer)
     data.dump(model_path)
     model = Imaginet(size_vocab=mapper.size(),
                      size_embed=embedding_size,
