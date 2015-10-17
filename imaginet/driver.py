@@ -25,9 +25,8 @@ import string
 
 class Batcher(object):
 
-    def __init__(self, mapper, pad_end=False):
-        self.pad_end = pad_end
-        self.mapper = mapper
+    def __init__(self, mapper, pad_end=False, tokenizer='word'):
+        autoassign(locals())
         self.BEG = self.mapper.BEG_ID
         self.END = self.mapper.END_ID
         
@@ -128,7 +127,7 @@ class Data(object):
         sents_out = self.mapper.transform(sents_out)
         imgs = self.scaler.transform(imgs)
         self.data['valid'] = zip(sents_in, sents_out, imgs)
-        self.batcher = Batcher(self.mapper, self.pad_end)
+        self.batcher = Batcher(self.mapper, self.pad_end, tokenizer=self.tokenizer)
         
     def shuffled(self, xs):
         if not self.shuffle:
@@ -309,7 +308,7 @@ def cmd_predict_v(dataset='coco',
     predict_r = predictor_r(model)
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
-    inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
+    inputs = list(mapper.transform([tokens(sent, tokenizer=batcher.tokenizer) for sent in sents ]))
     preds_v  = numpy.vstack([ predict_v(batcher.batch_inp(batch))
                             for batch in grouper(inputs, batch_size) ])
     numpy.save(os.path.join(model_path, output_v), preds_v)

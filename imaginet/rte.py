@@ -104,10 +104,20 @@ def cmd_predict_r(model_path='.',
     numpy.save(os.path.join(model_path, split + '_' + output_hypo), preds_hypo_r)
     numpy.save(os.path.join(model_path, split + '_' + output_labels), labels)
     
-def parse_snli(split='train', path='/home/gchrupala/repos/reimaginet/data/snli_1.0', omit_hyphen=True):
+def parse_snli(split='train', path='/home/gchrupala/repos/reimaginet/data/snli_1.0',
+               tokenizer='words',
+               omit_hyphen=True):
     """Return pair of premise, hypothesis from the specified split of the SNLI dataset."""
     def labelid(s):
         return ["contradiction","neutral","entailment"].index(s)
+    def tokens(s):
+        if tokenizer == 'words':
+            return tokenize(s)
+        elif tokenizer == 'raw':
+            return s
+        else:
+            raise ValueError("Unknown tokenizer {}".format(tokenizer))
+        
     with open(path+'/'+'snli_1.0_' + split + '.jsonl') as f:
         for line in f:
             record = json.loads(line)
@@ -115,7 +125,7 @@ def parse_snli(split='train', path='/home/gchrupala/repos/reimaginet/data/snli_1
             if omit_hyphen and record['gold_label'] == '-':
                 pass
             else:
-                yield (tokenize(record['sentence1']), tokenize(record['sentence2']), labelid(record['gold_label']))
+                yield (tokens(record['sentence1']), tokens(record['sentence2']), labelid(record['gold_label']))
             
 def cmd_train_rte(data_path='.',
                   size=200,
