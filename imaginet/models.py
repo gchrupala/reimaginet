@@ -176,6 +176,44 @@ class MultitaskLMD(Layer):
         input = T.imatrix()
         return theano.function([input], self.Visual.encode(self.Embed(input)))
 
+class MultitaskLMY(Layer):
+    """Alternative visual encoder combined with a textual decoder.
+
+    Textual decoder starts from final state of encoder instead of from
+    image. Shared hidden layer plus specialized layers.
+    """
+    
+    def __init__(self, size_vocab, size_embed, size, size_out, depth, depth_spec=1,
+                 gru_activation=clipped_rectify,
+                 visual_activation=linear):
+        autoassign(locals())
+        self.Embed   =  Embedding(self.size_vocab, self.size_embed)
+        self.Shared  =  StackedGRUH0(self.size_embed, self.size, self.depth, activation=self.gru_activation)
+        self.Visual  =  Visual(self.size, self.size, self.size_out, self.depth_spec,
+                                gru_activation=self.gru_activation,
+                                visual_activation=self.visual_activation)
+        self.LM      =  StackedGRU(self.size, self.size, self.depth_spec,
+                                     activation=self.gru_activation)
+        self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
+        self.params  =  params(self.Embed, self.Shared, self.Visual, self.LM, self.ToTxt)
+
+
+    def __call__(self, inp, output_prev, _img):
+        shared = self.Shared(self.Embed(inp))
+        img_pred = self.Visual(shared)
+        txt_pred = softmax3d(self.Embed.unembed(self.ToTxt(self.LM(last(shared), self.Embed(output_prev)))))
+        return (img_pred, txt_pred)
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input], self.Visual(self.Shared(self.Embed(input))))
+
+    def predictor_r(self):
+        """Return function to predict representation from input."""
+        input = T.imatrix()
+        return theano.function([input], last(self.Shared(self.Embed(input))))
+
 class Imaginet(object):
     """Trainable imaginet model."""
 
