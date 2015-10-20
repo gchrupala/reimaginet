@@ -99,6 +99,9 @@ class Data(object):
                                                                         reverse=self.reverse,
                                                                         tokenize=self.tokenizer
                                                                     )))
+        else:
+            raise ValueError("Unknown value for keyword argument 'with_para': {}".format(self.with_para))
+
         if self.fit:
             sents_in = self.mapper.fit_transform(sents_in)
             imgs = self.scaler.fit_transform(imgs)
