@@ -264,7 +264,8 @@ def cmd_train( dataset='coco',
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
                      max_norm=max_norm,
-                     lr=lr)
+                     lr=lr,
+                     dropout_prob=dropout_prob)
     start_epoch=1
     do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
     

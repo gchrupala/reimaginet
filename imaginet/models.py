@@ -20,10 +20,12 @@ class Activation(Layer):
 class Visual(Layer):
     def __init__(self, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear,
+                 dropout_prob=0.0):
         autoassign(locals())
         self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth,
-                                     activation=self.gru_activation)
+                                   activation=self.gru_activation,
+                                   dropout_prob=self.dropout_prob)
         self.ToImg   = Dense(self.size, self.size_out)
         self.params  = params(self.Encode, self.ToImg)
 
@@ -38,14 +40,16 @@ class MultitaskLMA(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
                                gru_activation=self.gru_activation,
-                               visual_activation=self.visual_activation)
+                               visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRUH0(self.size_embed, self.size, self.depth,
-                                     activation=self.gru_activation)
+                                     activation=self.gru_activation,
+                                     dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_vocab) # map to vocabulary
         self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
@@ -72,14 +76,16 @@ class MultitaskLM(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
                                gru_activation=self.gru_activation,
-                               visual_activation=self.visual_activation)
+                               visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRUH0(self.size_embed, self.size, self.depth,
-                                     activation=self.gru_activation)
+                                     activation=self.gru_activation,
+                                     dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # map to embeddings
         self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
@@ -106,14 +112,17 @@ class MultitaskLMC(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear,
+                 dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
                                gru_activation=self.gru_activation,
-                               visual_activation=self.visual_activation)
+                               visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRU(self.size_embed, self.size, self.depth,
-                                     activation=self.gru_activation)
+                                     activation=self.gru_activation,
+                                   dropout_prob=self.dropout_prob)
         self.FromImg =  Dense(self.size_out, self.size)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
         self.params  =  params(self.Embed, self.Visual, self.LM, self.FromImg, self.ToTxt)
@@ -145,14 +154,16 @@ class MultitaskLMD(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
                                gru_activation=self.gru_activation,
-                               visual_activation=self.visual_activation)
+                               visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRU(self.size_embed, self.size, self.depth,
-                                     activation=self.gru_activation)
+                                     activation=self.gru_activation,
+                                   dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
         self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
@@ -185,15 +196,19 @@ class MultitaskLMY(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth, depth_spec=1,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear):
+                 visual_activation=linear,
+                 dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
-        self.Shared  =  StackedGRUH0(self.size_embed, self.size, self.depth, activation=self.gru_activation)
+        self.Shared  =  StackedGRUH0(self.size_embed, self.size, self.depth, activation=self.gru_activation,
+                                     dropout_prob=self.dropout_prob)
         self.Visual  =  Visual(self.size, self.size, self.size_out, self.depth_spec,
                                 gru_activation=self.gru_activation,
-                                visual_activation=self.visual_activation)
+                                visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRU(self.size, self.size, self.depth_spec,
-                                     activation=self.gru_activation)
+                                     activation=self.gru_activation,
+                                   dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
         self.params  =  params(self.Embed, self.Shared, self.Visual, self.LM, self.ToTxt)
 
@@ -213,15 +228,16 @@ class MultitaskLMY(Layer):
         """Return function to predict representation from input."""
         input = T.imatrix()
         return theano.function([input], last(self.Shared(self.Embed(input))))
-
+        
 class Imaginet(object):
     """Trainable imaginet model."""
 
     def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5,
                  gru_activation=clipped_rectify, visual_activation=linear, cost_visual=CosineDistance,
-                 max_norm=None, lr=0.0002):
+                 max_norm=None, lr=0.0002, dropout_prob=0.0):
         autoassign(locals())
-        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,                                gru_activation=self.gru_activation, visual_activation=self.visual_activation)
+        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,                                gru_activation=self.gru_activation, visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
                                
         input         = T.imatrix()
         output_t_prev = T.imatrix()
