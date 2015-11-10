@@ -55,12 +55,12 @@ class Batcher(object):
         out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
         return (inp, out_v, out_prev_t, out_t)
     
-def valid_loss(model, data):
+def valid_loss(loss_test, data):
     """Apply model to validation data and return loss info."""
     c = Counter()
     for item in data.iter_valid_batches():
         inp, out_v, out_prev_t, out_t = item
-        cost, cost_t, cost_v = model.loss_test(inp, out_v, out_prev_t, out_t)
+        cost, cost_t, cost_v = loss_test(inp, out_v, out_prev_t, out_t)
         c += Counter({'cost_t': cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
     return c
     
@@ -272,13 +272,18 @@ def cmd_train( dataset='coco',
 def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data):
     with open(logfile, 'w') as log:
         for epoch in range(start_epoch, epochs + 1):
+            if epoch > 1:
+                model.network.grow()
+            print len(model.network.params())
+            train_fun = model.make_train()
+            loss_test_fun = model.make_loss_test()
             costs = Counter()
             N = 0
             # recent = []
             for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
                 inp, out_v, out_prev_t, out_t = item
-                cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
+                cost, cost_t, cost_v = train_fun(inp, out_v, out_prev_t, out_t)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
                 #recent = recent[-5:];recent.append(costs['cost']/costs['N'])
                 print epoch, j, j*batch_size, "train", stats(costs)
@@ -289,7 +294,7 @@ def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model
                 #     recent = []
                  
                 if j*batch_size % validate_period == 0:
-                    costs_valid = valid_loss(model, data)
+                    costs_valid = valid_loss(loss_test_fun, data)
                     print epoch, j, j, "valid", stats(costs_valid)
                 sys.stdout.flush()
             pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'),
@@ -313,6 +318,7 @@ def cmd_predict_v(dataset='coco',
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents  = list(prov.iterSentences(split='val'))
     inputs = list(mapper.transform([tokens(sent, tokenizer=batcher.tokenizer) for sent in sents ]))
+    print len(model.network.params())
     preds_v  = numpy.vstack([ predict_v(batcher.batch_inp(batch))
                             for batch in grouper(inputs, batch_size) ])
     numpy.save(os.path.join(model_path, output_v), preds_v)

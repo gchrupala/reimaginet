@@ -1,9 +1,9 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
                              Embedding, OneHot, \
-                             last, softmax3d
+                             last, softmax3d, params
 import funktional.util as util
 from funktional.util import CosineDistance, CrossEntropy, linear, clipped_rectify
-from funktional.util import autoassign, params
+from funktional.util import autoassign
 import funktional.context as context
 import theano.tensor as T
 import theano
@@ -12,8 +12,10 @@ class Activation(Layer):
     """Activation function object."""
     def __init__(self, activation):
         autoassign(locals())
-        self.params = []
 
+    def params():
+        return []
+    
     def __call__(self, inp):
         return self.activation(inp)
 
@@ -27,7 +29,9 @@ class Visual(Layer):
                                    activation=self.gru_activation,
                                    dropout_prob=self.dropout_prob)
         self.ToImg   = Dense(self.size, self.size_out)
-        self.params  = params(self.Encode, self.ToImg)
+
+    def params(self):
+        return params(self.Encode, self.ToImg)
 
     def __call__(self, inp):
         return self.visual_activation(self.ToImg(last(self.Encode(inp))))
@@ -51,9 +55,14 @@ class MultitaskLMA(Layer):
                                      activation=self.gru_activation,
                                      dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_vocab) # map to vocabulary
-        self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
-                
+    def params(self):
+        return params(self.Embed, self.Visual, self.LM, self.ToTxt)
+
+    def grow(self):
+        self.LM.layer.grow()
+        self.Visual.Encode.layer.grow()
+        
     def __call__(self, inp, output_prev, _img):
         img_pred   = self.Visual(self.Embed(inp))
         txt_pred   = softmax3d(self.ToTxt(self.LM(self.Embed(output_prev))))
@@ -87,7 +96,9 @@ class MultitaskLM(Layer):
                                      activation=self.gru_activation,
                                      dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # map to embeddings
-        self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
+
+    def params(self):
+        return params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
                 
     def __call__(self, inp, output_prev, _img):
@@ -125,7 +136,9 @@ class MultitaskLMC(Layer):
                                    dropout_prob=self.dropout_prob)
         self.FromImg =  Dense(self.size_out, self.size)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
-        self.params  =  params(self.Embed, self.Visual, self.LM, self.FromImg, self.ToTxt)
+
+    def params(self):
+        return params(self.Embed, self.Visual, self.LM, self.FromImg, self.ToTxt)
 
         
     def __call__(self, inp, output_prev, img):
@@ -165,7 +178,9 @@ class MultitaskLMD(Layer):
                                      activation=self.gru_activation,
                                    dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
-        self.params  =  params(self.Embed, self.Visual, self.LM, self.ToTxt)
+
+    def params(self):
+        return params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
         
     def __call__(self, inp, output_prev, _img):
@@ -210,7 +225,10 @@ class MultitaskLMY(Layer):
                                      activation=self.gru_activation,
                                    dropout_prob=self.dropout_prob)
         self.ToTxt   =  Dense(self.size, self.size_embed) # try direct softmax
-        self.params  =  params(self.Embed, self.Shared, self.Visual, self.LM, self.ToTxt)
+
+
+    def params(self):
+        return params(self.Embed, self.Shared, self.Visual, self.LM, self.ToTxt)
 
 
     def __call__(self, inp, output_prev, _img):
@@ -236,37 +254,41 @@ class Imaginet(object):
                  gru_activation=clipped_rectify, visual_activation=linear, cost_visual=CosineDistance,
                  max_norm=None, lr=0.0002, dropout_prob=0.0):
         autoassign(locals())
-        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,                                gru_activation=self.gru_activation, visual_activation=self.visual_activation,
+        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,
+                               gru_activation=self.gru_activation, visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
                                
-        input         = T.imatrix()
-        output_t_prev = T.imatrix()
-        output_t      = T.imatrix()
-        output_v      = T.fmatrix()
+        self.input         = T.imatrix()
+        self.output_t_prev = T.imatrix()
+        self.output_t      = T.imatrix()
+        self.output_v      = T.fmatrix()
         self.OH       = OneHot(size_in=self.size_vocab)
-        output_t_oh   = self.OH(output_t)
-        # TRAINING
-        with context.context(training=True):
-            output_v_pred, output_t_pred = self.network(input, output_t_prev, output_v)
-            cost_T = CrossEntropy(output_t_oh, output_t_pred)
-            cost_V = self.cost_visual(output_v, output_v_pred)
-            cost = self.alpha * cost_T + (1.0 - self.alpha) * cost_V
-        #TESTING
-        with context.context(training=False):
-            output_v_pred_test, output_t_pred_test = self.network(input, output_t_prev, output_v)
-            cost_T_test = CrossEntropy(output_t_oh, output_t_pred_test)
-            cost_V_test = self.cost_visual(output_v, output_v_pred_test)
-            cost_test = self.alpha * cost_T_test + (1.0 - self.alpha) * cost_V_test
+        self.output_t_oh   = self.OH(self.output_t)
         self.updater = util.Adam(max_norm=self.max_norm, lr=self.lr)
-        updates = self.updater.get_updates(self.network.params, cost, disconnected_inputs='warn')
-        # TODO better way of dealing with needed/unneeded output_t_prev?
-        self.train = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],
-                                     updates=updates, on_unused_input='warn')
+        
 
-        self.loss_test = theano.function([input, output_v, output_t_prev, output_t ],
-                                         [cost_test, cost_T_test, cost_V_test],
-                                    on_unused_input='warn')
+    def make_train(self):
+        with context.context(training=True):
+            output_v_pred, output_t_pred = self.network(self.input, self.output_t_prev, self.output_v)
+            cost_T = CrossEntropy(self.output_t_oh, output_t_pred)
+            cost_V = self.cost_visual(self.output_v, output_v_pred)
+            cost = self.alpha * cost_T + (1.0 - self.alpha) * cost_V
+        return theano.function([self.input, self.output_v, self.output_t_prev, self.output_t ],
+                               [cost, cost_T, cost_V],
+                               updates=self.updates(cost), on_unused_input='warn')
+        
+    def make_loss_test(self):
+        with context.context(training=False):
+            output_v_pred_test, output_t_pred_test = self.network(self.input, self.output_t_prev, self.output_v)
+            cost_T_test = CrossEntropy(self.output_t_oh, output_t_pred_test)
+            cost_V_test = self.cost_visual(self.output_v, output_v_pred_test)
+            cost_test = self.alpha * cost_T_test + (1.0 - self.alpha) * cost_V_test
+        return theano.function([self.input, self.output_v, self.output_t_prev, self.output_t ],
+                               [cost_test, cost_T_test, cost_V_test],
+                               on_unused_input='warn')
 
+    def updates(self, cost):
+        return self.updater.get_updates(self.network.params(), cost, disconnected_inputs='warn')
 
 # Functions added outside the class do not interfere with loading of older versions
 def predictor_v(model):
