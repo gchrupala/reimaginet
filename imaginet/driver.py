@@ -55,12 +55,12 @@ class Batcher(object):
         out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
         return (inp, out_v, out_prev_t, out_t)
     
-def valid_loss(loss_test, data):
+def valid_loss(model, data):
     """Apply model to validation data and return loss info."""
     c = Counter()
     for item in data.iter_valid_batches():
         inp, out_v, out_prev_t, out_t = item
-        cost, cost_t, cost_v = loss_test(inp, out_v, out_prev_t, out_t)
+        cost, cost_t, cost_v = model.loss_test(inp, out_v, out_prev_t, out_t)
         c += Counter({'cost_t': cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
     return c
     
@@ -211,6 +211,7 @@ def cmd_train_resume( dataset='coco',
     sys.setrecursionlimit(50000)
     if seed is not None:
         random.seed(seed)
+        numpy.random.seed(seed)
     prov = dp.getDataProvider(dataset, root=datapath, extra_train=extra_train)
     batcher, scaler, model = map(load, ['batcher.pkl.gz', 'scaler.pkl.gz', model_name])
     data = Data(prov, batcher.mapper, scaler, batch_size=batch_size, with_para=with_para,
@@ -228,6 +229,7 @@ def cmd_train( dataset='coco',
                lr=0.0002,
                embedding_size=None,
                depth=1,
+               grow_depth=None,
                scaler=None,
                cost_visual=CosineDistance,
                seed=None,
@@ -246,6 +248,7 @@ def cmd_train( dataset='coco',
     sys.setrecursionlimit(50000) # needed for pickling models
     if seed is not None:
         random.seed(seed)
+        numpy.random.seed(seed)
     prov = dp.getDataProvider(dataset, root=datapath, extra_train=extra_train)
     mapper = util.IdMapper(min_df=10)
     embedding_size = embedding_size if embedding_size is not None else hidden_size
@@ -267,23 +270,25 @@ def cmd_train( dataset='coco',
                      lr=lr,
                      dropout_prob=dropout_prob)
     start_epoch=1
-    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data)
+    grow_depth = depth if grow_depth is None else grow_depth
+    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth)
     
-def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data):
+def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth):
     with open(logfile, 'w') as log:
+        current_depth=model.depth
         for epoch in range(start_epoch, epochs + 1):
-            if epoch > 1:
-                model.network.grow()
+            if epoch > 1 and current_depth < grow_depth:
+                model.grow()
+                current_depth += 1
+
             print len(model.network.params())
-            train_fun = model.make_train()
-            loss_test_fun = model.make_loss_test()
             costs = Counter()
             N = 0
             # recent = []
             for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
                 inp, out_v, out_prev_t, out_t = item
-                cost, cost_t, cost_v = train_fun(inp, out_v, out_prev_t, out_t)
+                cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
                 #recent = recent[-5:];recent.append(costs['cost']/costs['N'])
                 print epoch, j, j*batch_size, "train", stats(costs)
@@ -294,13 +299,23 @@ def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model
                 #     recent = []
                  
                 if j*batch_size % validate_period == 0:
-                    costs_valid = valid_loss(loss_test_fun, data)
+                    costs_valid = valid_loss(model, data)
                     print epoch, j, j, "valid", stats(costs_valid)
                 sys.stdout.flush()
             pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'),
                         protocol=pickle.HIGHEST_PROTOCOL)
         pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'),
                     protocol=pickle.HIGHEST_PROTOCOL)
+
+def load(d, model_name='model.pkl.gz'):
+    def load_pklgz(f):
+        return pickle.load(gzip.open(os.path.join(d, f)))
+    batcher, scaler, model = map(load_pklgz, ['batcher.pkl.gz','scaler.pkl.gz', model_name])
+    mapper = batcher.mapper
+    return {'batcher': batcher, 'scaler': scaler, 'model': model }
+
+def batch_sents(batcher, sents):
+    return batcher.batch_inp(list(batcher.mapper.transform([ tokenize(s) for s in sents ])))
 
 def cmd_predict_v(dataset='coco',
                   datapath='.',
@@ -309,10 +324,10 @@ def cmd_predict_v(dataset='coco',
                   batch_size=128,
                   output_v='predict_v.npy',
                   output_r='predict_r.npy'):
-    def load(f):
-        return pickle.load(gzip.open(os.path.join(model_path, f)))
-    batcher, scaler, model = map(load, ['batcher.pkl.gz','scaler.pkl.gz', model_name])
-    mapper = batcher.mapper
+    M = load(model_path, model_name=model_name)
+    model = M['model']
+    batcher = M['batcher']
+    mapper = M['batcher'].mapper
     predict_v = predictor_v(model)
     predict_r = predictor_r(model)
     prov   = dp.getDataProvider(dataset, root=datapath)

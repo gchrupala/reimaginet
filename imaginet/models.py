@@ -265,9 +265,10 @@ class Imaginet(object):
         self.OH       = OneHot(size_in=self.size_vocab)
         self.output_t_oh   = self.OH(self.output_t)
         self.updater = util.Adam(max_norm=self.max_norm, lr=self.lr)
-        
+        self.train = self._make_train()
+        self.loss_test = self._make_loss_test()
 
-    def make_train(self):
+    def _make_train(self):
         with context.context(training=True):
             output_v_pred, output_t_pred = self.network(self.input, self.output_t_prev, self.output_v)
             cost_T = CrossEntropy(self.output_t_oh, output_t_pred)
@@ -277,7 +278,7 @@ class Imaginet(object):
                                [cost, cost_T, cost_V],
                                updates=self.updates(cost), on_unused_input='warn')
         
-    def make_loss_test(self):
+    def _make_loss_test(self):
         with context.context(training=False):
             output_v_pred_test, output_t_pred_test = self.network(self.input, self.output_t_prev, self.output_v)
             cost_T_test = CrossEntropy(self.output_t_oh, output_t_pred_test)
@@ -290,6 +291,11 @@ class Imaginet(object):
     def updates(self, cost):
         return self.updater.get_updates(self.network.params(), cost, disconnected_inputs='warn')
 
+    def grow(self):
+        self.network.grow()
+        self.train  = self._make_train()
+        self.loss_test = self._make_loss_test()
+        
 # Functions added outside the class do not interfere with loading of older versions
 def predictor_v(model):
     """Return function to predict image vector from input using `model`."""
