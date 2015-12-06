@@ -14,6 +14,7 @@ import os
 import copy
 import funktional.util as util
 from funktional.util import linear, clipped_rectify, grouper, autoassign, CosineDistance
+from funktional.layer import StackedGRUH0
 from collections import Counter
 import data_provider as dp
 from models import Imaginet, MultitaskLM, predictor_v, predictor_r
@@ -225,6 +226,7 @@ def cmd_train( dataset='coco',
                hidden_size=1024,
                gru_activation=clipped_rectify,
                visual_activation=linear,
+               visual_encoder=StackedGRUH0,
                max_norm=None,
                lr=0.0002,
                embedding_size=None,

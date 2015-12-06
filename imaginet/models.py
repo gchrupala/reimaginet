@@ -19,13 +19,32 @@ class Activation(Layer):
     def __call__(self, inp):
         return self.activation(inp)
 
+class SumAdapter(Layer):
+    # Adapt Sum to be compatible with  with StackedGRUH0. Depth and activation 
+    # will be ignored
+    # FIXME nicer way of doing this?
+    def __init__(self, size_embed, size, 
+                 depth=None,               
+                 activation=None,
+                 dropout_prob=0.0):
+        assert self.size_embed == self.size
+        autoassign(locals())
+        self.Dropout0 = Dropout(prob=self.dropout_prob)
+        self.Sum = Sum(self.size)
+
+    def params(self):
+        return params(self.Dropout0, self.Sum)
+
+    def __call__(self, seq):
+        return self.Sum(self.Dropout0(seq))
+
 class Visual(Layer):
-    def __init__(self, size_embed, size, size_out, depth,
+    def __init__(self, size_embed, size, size_out, depth, encoder=StackedGRUH0,
                  gru_activation=clipped_rectify,
                  visual_activation=linear,
                  dropout_prob=0.0):
         autoassign(locals())
-        self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth,
+        self.Encode = encoder(self.size_embed, self.size, self.depth,
                                    activation=self.gru_activation,
                                    dropout_prob=self.dropout_prob)
         self.ToImg   = Dense(self.size, self.size_out)
@@ -44,10 +63,11 @@ class MultitaskLMA(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear, dropout_prob=0.0):
+                 visual_encoder=StackedGRUH0, visual_activation=linear, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
-        self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
+        self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth, 
+                               encoder=self.visual_encoder,
                                gru_activation=self.gru_activation,
                                visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
@@ -85,10 +105,11 @@ class MultitaskLM(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear, dropout_prob=0.0):
+                 visual_activation=linear, visual_encoder=StackedGRUH0, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
+                               encoder=self.visual_encoder,
                                gru_activation=self.gru_activation,
                                visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
@@ -123,11 +144,12 @@ class MultitaskLMC(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear,
+                 visual_activation=linear, visual_encoder=StackedGRUH0,
                  dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
+                               encoder=self.visual_encoder,
                                gru_activation=self.gru_activation,
                                visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
@@ -167,10 +189,11 @@ class MultitaskLMD(Layer):
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth,
                  gru_activation=clipped_rectify,
-                 visual_activation=linear, dropout_prob=0.0):
+                 visual_activation=linear, visual_encoder=StackedGRUH0, dropout_prob=0.0):
         autoassign(locals())
         self.Embed   =  Embedding(self.size_vocab, self.size_embed)
         self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth,
+                               encoder=self.visual_encoder,
                                gru_activation=self.gru_activation,
                                visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
@@ -210,6 +233,7 @@ class MultitaskLMY(Layer):
     """
     
     def __init__(self, size_vocab, size_embed, size, size_out, depth, depth_spec=1,
+                 visual_encoder=StackedGRUH0,
                  gru_activation=clipped_rectify,
                  visual_activation=linear,
                  dropout_prob=0.0):
@@ -218,6 +242,7 @@ class MultitaskLMY(Layer):
         self.Shared  =  StackedGRUH0(self.size_embed, self.size, self.depth, activation=self.gru_activation,
                                      dropout_prob=self.dropout_prob)
         self.Visual  =  Visual(self.size, self.size, self.size_out, self.depth_spec,
+                               encoder=self.visual_encoder,
                                 gru_activation=self.gru_activation,
                                 visual_activation=self.visual_activation,
                                dropout_prob=self.dropout_prob)
@@ -250,12 +275,24 @@ class MultitaskLMY(Layer):
 class Imaginet(object):
     """Trainable imaginet model."""
 
-    def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5,
-                 gru_activation=clipped_rectify, visual_activation=linear, cost_visual=CosineDistance,
-                 max_norm=None, lr=0.0002, dropout_prob=0.0):
+    def __init__(self, size_vocab, size_embed, size, size_out, depth, network, 
+                 alpha=0.5,
+                 gru_activation=clipped_rectify, 
+                 visual_activation=linear, 
+                 visual_encoder=StackedGRUH0, 
+                 cost_visual=CosineDistance,
+                 max_norm=None, 
+                 lr=0.0002, 
+                 dropout_prob=0.0):
         autoassign(locals())
-        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth,
-                               gru_activation=self.gru_activation, visual_activation=self.visual_activation,
+        self.network = network(self.size_vocab, 
+                               self.size_embed, 
+                               self.size, 
+                               self.size_out, 
+                               self.depth,
+                               gru_activation=self.gru_activation, 
+                               visual_activation=self.visual_activation,
+                               visual_encoder=self.visual_encoder,
                                dropout_prob=self.dropout_prob)
                                
         self.input         = T.imatrix()
