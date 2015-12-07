@@ -268,6 +268,7 @@ def cmd_train( dataset='coco',
                      alpha=alpha,
                      gru_activation=gru_activation,
                      visual_activation=visual_activation,
+                     visual_encoder=visual_encoder,
                      max_norm=max_norm,
                      lr=lr,
                      dropout_prob=dropout_prob)

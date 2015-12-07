@@ -1,5 +1,5 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
-                             Embedding, OneHot, \
+                             Embedding, OneHot, Dropout, Sum, \
                              last, softmax3d, params
 import funktional.util as util
 from funktional.util import CosineDistance, CrossEntropy, linear, clipped_rectify
@@ -27,8 +27,8 @@ class SumAdapter(Layer):
                  depth=None,               
                  activation=None,
                  dropout_prob=0.0):
-        assert self.size_embed == self.size
         autoassign(locals())
+        assert self.size_embed == self.size
         self.Dropout0 = Dropout(prob=self.dropout_prob)
         self.Sum = Sum(self.size)
 
