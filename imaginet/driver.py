@@ -232,6 +232,7 @@ def cmd_train( dataset='coco',
                embedding_size=None,
                depth=1,
                grow_depth=None,
+               grow_params_path=None,
                scaler=None,
                cost_visual=CosineDistance,
                seed=None,
@@ -274,14 +275,15 @@ def cmd_train( dataset='coco',
                      dropout_prob=dropout_prob)
     start_epoch=1
     grow_depth = depth if grow_depth is None else grow_depth
-    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth)
+    do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth, grow_params_path)
     
-def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth):
+def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model_path, model, data, grow_depth, grow_params_path):
     with open(logfile, 'w') as log:
         current_depth=model.depth
         for epoch in range(start_epoch, epochs + 1):
             if epoch > 1 and current_depth < grow_depth:
-                model.grow()
+                ps = numpy.load(grow_params_path)
+                model.grow(ps)
                 current_depth += 1
 
             print len(model.network.params())

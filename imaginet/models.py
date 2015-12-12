@@ -79,9 +79,9 @@ class MultitaskLMA(Layer):
     def params(self):
         return params(self.Embed, self.Visual, self.LM, self.ToTxt)
 
-    def grow(self):
-        self.LM.layer.grow()
-        self.Visual.Encode.layer.grow()
+    def grow(self, ps):
+        self.LM.layer.grow(ps)
+        self.Visual.Encode.layer.grow(ps)
         
     def __call__(self, inp, output_prev, _img):
         img_pred   = self.Visual(self.Embed(inp))
@@ -328,8 +328,8 @@ class Imaginet(object):
     def updates(self, cost):
         return self.updater.get_updates(self.network.params(), cost, disconnected_inputs='warn')
 
-    def grow(self):
-        self.network.grow()
+    def grow(self, ps):
+        self.network.grow(ps)
         self.train  = self._make_train()
         self.loss_test = self._make_loss_test()
         
