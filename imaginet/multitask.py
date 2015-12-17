@@ -15,45 +15,96 @@ import funktional.context as context
 import theano.tensor as T
 import theano
 
-class Tasks(object):
-    
-    def __call__(self, task, *args):
-        """Dispatch inputs to task."""
-        return self.task[task](*args)
-
-class TasksRI(Tasks):
-
-    def __init__(self):
-        autoassign(locals())
-        self.Embed = Embedding(self.size_vocab, self.size_embed)
-        self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth)
-        self.ToImg  = Dense(self.size, self.size_out)
-        self.TxtDecode = StackedGRU(self.size_embed, self.size, self.depth)
-        self.ToTxt = Dense(self.size, self.size_embed) # map to embeddings
-                   
-    def params_all(self):
-        return params(self.Embed, self.Encode, self.ToImg, self.TxtDecode, self.ToTxt)
-
-    def params(self):
-        """Mapping from task names to task params."""
-        return dict(reconstruct=params(self.Embed, self.Encode, self.TxtDecode, self.ToTxt),
-                    imagine=params(self.Embed, self.Encode, self.ToImg))
-
-    def reconstruct(self, input, target_prev):
-            rep = self.last(self.Encode(self.Embed(input)))
-            return softmax3d(self.Embed.unembed(self.ToTxt(self.TxtDecode(rep, self.Embed(target_prev)))))
-
-    def imagine(self, input):
-            rep = self.last(self.Encode(self.Embed(input)))
-            return self.ToImg(rep)            
-
-    def task(self):
-        """Mapping from task names to task forward functions."""
-        return dict(reconstruct=self.reconstruct, imagine=self.imagine)
+class Task(Layer):
 
     def cost(self):
-        """Mapping from task names to task cost functions."""
-        return dict(reconstruct=CrossEntropy, imagine=CosineDistance)
+        raise NotImplementedError()
+    
+    def inputs(self):
+        raise NotImplementedError()
+    
+    def target(self):
+        raise NotImplementedError()
+    
+    def _make_train(self, updater):
+        with context.context(training=True):
+            prediction = self(*self.inputs())
+            cost = self.cost(self.target(), prediction)
+        return theano.function(self.inputs(), cost, updates=updater(cost))
+    
+    def _loss_test(self):
+        with context.context(training=False):
+            prediction = self(*self.inputs())
+            cost = self.cost(self.target(), prediction)
+        return theano.function(self.inputs(), cost)
+    
+class Encoder(Layer):
 
+    def __init__(self, size_vocab, size_embed, size, depth):
+        self.Embed = Embedding(self.size_vocab, self.size_embed)
+        self.Encode = StackedGRUH0(self.size_embed, self.size, self.depth)
 
+        
+    def params(self):
+        return params(self.Embed, self.Encode)
 
+    def __call__(self, input):
+        return self.Encode(self.Embed(input))
+    
+class Reconstruct(Task):
+
+    def __init__(self, encoder):
+        autoassign(locals())
+        self.TxtDecode = StackedGRU(self.size_embed, self.size, self.depth)
+        self.ToTxt = Dense(self.size, self.size_embed) # map to embeddings
+        self.OH = OneHot(size_in=self.encoder.size_vocab)
+        
+    def params(self):
+        return params(self.shared, self.TxtDecode, self.ToTxt)
+
+    def __call__(self, input, target_prev):
+        rep = self.last(self.encoder(input))
+        return softmax3d(self.Embed.unembed(self.ToTxt(self.TxtDecode(rep,
+                                                                      self.encoder.Embed(target_prev)))))
+        
+    def cost(self, target, prediction):
+        return CrossEntropy(self.OH(target), prediction)
+
+    def inputs(self):
+        return (T.imatrix(), T.imatrix())
+
+    def target(self):
+        return T.imatrix()
+    
+             
+class Imagine(Task):
+
+    def __init__(self, encoder):
+        autoassign(locals())
+        self.ToImg  = Dense(self.size, self.size_out)
+        
+    def params(self):
+        return params(self.encoder, self.ToImg)
+    
+    def __call__(self, input):
+        rep = self.last(self.encoder(input))
+        return self.ToImg(rep)            
+    
+    def cost(self):
+        return CosineDistance
+
+    def inputs(self):
+        return (T.imatrix(),)
+
+    def target(self):
+        return T.fmatrix()
+
+class TaskTrainer(object):
+    
+    def __init__(self, tasks):
+        autoassign(locals())
+        self.updater = util.Adam(max_norm=self.max_norm, lr=self.lr)
+        for task in self.tasks:
+            task.train  = task._make_train(updater)
+            task.loss_test = _make_loss_test()
+            
