@@ -100,6 +100,44 @@ class MultitaskLMA(Layer):
         input = T.imatrix()
         return theano.function([input], self.Visual.encode(self.Embed(input)))
 
+class MultitaskLMX(Layer):
+    """Visual encoder, no textual task."""
+    
+    def __init__(self, size_vocab, size_embed, size, size_out, depth,
+                 gru_activation=clipped_rectify,
+                 visual_encoder=StackedGRUH0, visual_activation=linear, dropout_prob=0.0):
+        autoassign(locals())
+        self.Embed   =  Embedding(self.size_vocab, self.size_embed)
+        self.Visual  =  Visual(self.size_embed, self.size, self.size_out, self.depth, 
+                               encoder=self.visual_encoder,
+                               gru_activation=self.gru_activation,
+                               visual_activation=self.visual_activation,
+                               dropout_prob=self.dropout_prob)
+        self.OH      = OneHot(self.size_vocab)
+
+    def params(self):
+        return params(self.Embed, self.Visual)
+
+    def grow(self, ps):
+        self.Visual.Encode.layer.grow(ps)
+        
+    def __call__(self, inp, output_prev, _img):
+        img_pred   = self.Visual(self.Embed(inp))
+        txt_pred   = softmax3d(self.OH(output_prev)) # fake output prediction
+        return (img_pred, txt_pred)
+
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input],
+                         self.Visual(self.Embed(input)))
+
+    def predictor_r(self):
+        """Return function to predict representation from input."""
+        input = T.imatrix()
+        return theano.function([input], self.Visual.encode(self.Embed(input)))
+
 class MultitaskLM(Layer):
     """Visual encoder combined with a textual task."""
     
@@ -304,7 +342,7 @@ class Imaginet(object):
         self.updater = util.Adam(max_norm=self.max_norm, lr=self.lr)
         self.train = self._make_train()
         self.loss_test = self._make_loss_test()
-
+                               
     def _make_train(self):
         with context.context(training=True):
             output_v_pred, output_t_pred = self.network(self.input, self.output_t_prev, self.output_v)
@@ -327,7 +365,7 @@ class Imaginet(object):
 
     def updates(self, cost):
         return self.updater.get_updates(self.network.params(), cost, disconnected_inputs='warn')
-
+    
     def grow(self, ps):
         self.network.grow(ps)
         self.train  = self._make_train()

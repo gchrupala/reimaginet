@@ -294,6 +294,10 @@ def do_training(logfile, epochs, start_epoch, batch_size, validate_period, model
                 j = _j + 1
                 inp, out_v, out_prev_t, out_t = item
                 cost, cost_t, cost_v = model.train(inp, out_v, out_prev_t, out_t)
+                #grads =  model.delete_me(inp, out_v, out_prev_t, out_t)
+                #for grad in grads:
+                #    print grad.shape
+                #    print numpy.linalg.norm(grad)
                 costs += Counter({'cost_t':cost_t, 'cost_v': cost_v, 'cost': cost, 'N': 1})
                 #recent = recent[-5:];recent.append(costs['cost']/costs['N'])
                 print epoch, j, j*batch_size, "train", stats(costs)
