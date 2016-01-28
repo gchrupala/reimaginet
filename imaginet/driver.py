@@ -178,20 +178,20 @@ def arrange_para_rand(data, reverse=False, tokenizer='word'):
         for sent_in in image['sentences']:
             sent_out = random.choice(image['sentences'])
             yield (tokens(sent_in, tokenizer=tokenizer),
-                   list(reversed(tokens(sent_out))) if reverse else tokens(sent_out) , image['feat'])
-            
+                   list(reversed(tokens(sent_out, tokenizer=tokenizer))) if reverse else tokens(sent_out, tokenizer=tokenizer), image['feat'])
+
 def arrange_para(data, reverse=False, tokenizer='word'):
     for image in data:
         for sent_in in image['sentences']:
             for sent_out in image['sentences']:
                 yield (tokens(sent_in, tokenizer=tokenizer),
-                       list(reversed(tokens(sent_out))) if reverse else tokens(send_out), image['feat'])
+                       list(reversed(tokens(sent_out, tokenizer=tokenizer))) if reverse else tokens(send_out, tokenizer=tokenizer), image['feat'])
                 
 def arrange_auto(data, reverse=False, tokenizer='word'):
     for image in data:
         for sent in image['sentences']:
             yield (tokens(sent, tokenizer=tokenizer),
-                   list(reversed(tokens(sent))) if reverse else tokens(sent), image['feat'])
+                   list(reversed(tokens(sent, tokenizer=tokenizer))) if reverse else tokens(sent, tokenizer=tokenizer), image['feat'])
 
             
 def cmd_train_resume( dataset='coco',
