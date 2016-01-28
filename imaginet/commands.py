@@ -2,7 +2,6 @@ from funktional.util import grouper
 from imaginet.multitask import *
 import numpy
 import imaginet.data_provider as dp
-import imaginet.driver
 from  sklearn.preprocessing import StandardScaler
 from imaginet.simple_data import SimpleData, compressed
 import sys
