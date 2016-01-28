@@ -17,7 +17,12 @@ import theano.tensor as T
 import theano
 
 class Task(Layer):
-    # Attributes to be implemented
+    """Task is a trainable Layer.
+
+    You need to set the following attributes:
+    - inputs - list of theano symbolic variables
+    - target - theano symbolic variable
+    """
     inputs = None
     target = None
     
