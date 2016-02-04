@@ -2,11 +2,12 @@ import json
 from imaginet.commands import train, evaluate, compressed
 from funktional.util import linear, clipped_rectify, CosineDistance
 dataset = 'flickr8k'
+datapath = "."
 epochs = 1
 
 
 train(dataset=dataset,
-      datapath='/home/gchrupala/repos/neuraltalk/',
+      datapath=datapath,
       model_path='.',
       epochs=epochs,
       min_df=10,
@@ -23,7 +24,7 @@ train(dataset=dataset,
 for epoch in range(1, epochs+1):
     
     scores = evaluate(dataset=dataset,
-                      datapath='/home/gchrupala/repos/neuraltalk/',
+                      datapath=datapath,
                       model_path='.',
                       model_name='model.{}.pkl.gz'.format(epoch))
     json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
