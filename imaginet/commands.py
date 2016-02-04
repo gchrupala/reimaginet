@@ -1,5 +1,5 @@
 from funktional.util import grouper
-from imaginet.multitask import *
+from imaginet.task import *
 import numpy
 import imaginet.data_provider as dp
 from  sklearn.preprocessing import StandardScaler
