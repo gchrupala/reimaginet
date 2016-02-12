@@ -7,14 +7,18 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
                              Embedding, OneHot,  \
                              last, softmax3d, params
-from models import *
-
+from models import * # FIXME this needed?
+import numpy
 import funktional.util as util
 from funktional.util import CosineDistance, CrossEntropy, MeanSquaredError, linear, clipped_rectify
 from funktional.util import autoassign
 import funktional.context as context
 import theano.tensor as T
 import theano
+import zipfile
+import cStringIO as StringIO
+import json
+import cPickle as pickle
 
 class Task(Layer):
     """Task is a trainable Layer.
@@ -103,7 +107,10 @@ class Imagine(Task):
     def cost(self, target, prediction):
         return CosineDistance(target, prediction)
 
-
+    def _make_representation(self):
+        with context.context(training=False):
+            rep = self.encoder(*self.inputs)
+        return theano.function(self.inputs, rep)
 
 class TaskTrainer(object):
     
@@ -121,3 +128,57 @@ class TaskTrainer(object):
     def params(self):
         return params(*self.tasks.values())
     
+
+def predict_img(model, sents, batch_size=128):
+    task = model.trainer.tasks['imagine']
+    inputs = list(model.batcher.mapper.transform(sents))
+    return numpy.vstack([ task.predict(model.batcher.batch_inp(batch))
+                            for batch in util.grouper(inputs, batch_size) ])
+    
+def representation(model, sents, batch_size=128):
+    task = model.trainer.tasks['imagine']
+    inputs = list(model.batcher.mapper.transform(sents))
+    return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))
+                            for batch in util.grouper(inputs, batch_size) ])
+
+def make_trainer(config, weights=None):
+    encoder = Encoder(size_vocab=config['size_vocab'],
+                      size_embed=config['size_embed'],
+                      size=config['size_hidden'],
+                      depth=config['depth'])
+    imagine = Imagine(encoder, size=config['size'])
+    trainer = TaskTrainer({'imagine': imagine}, max_norm=config['max_norm'])
+    if weights is not None:
+        assert len(trainer.params()) == len(weights)
+        for param, weight in zip(trainer.params(), weights):
+            param.set_value(weight)
+    imagine.representation = imagine._make_representation() # compile function to output representation
+    return trainer
+
+class Model(object):
+
+    def __init__(self, config, scaler, batcher, weights=None):
+            autoassign(locals())
+            self.trainer = make_trainer(config, weights=weights)
+            
+    def save(self, path='model.zip'):
+        """Save the data needed to reconstruct model.
+        """
+        zf = zipfile.ZipFile(path, 'w')
+        buf = StringIO.StringIO()
+        numpy.save(buf, [ param.get_values() for param in self.trainer.params() ])
+        zf.writestr('weights.npy', buf.getvalue(),                compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('config.json', json.dumps(self.config),    compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('scaler.pkl',  pickle.dumps(self.scaler),  compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('batcher.pkl', pickle.dumps(self.batcher), compress_type=zipfile.ZIP_DEFLATED)
+    
+def load(path='model.zip'):
+        """Load data needed and reconstruct model.
+        """
+        with zipfile.ZipFile(path, 'r') as zf:
+            buf = StringIO.StringIO(zf.read('weights.npy'))
+            weights = numpy.load(buf)
+            config  = json.loads(zf.read('config.json'))
+            scaler  = pickle.loads(zf.read('scaler.pkl'))
+            batcher = pickle.loads(zf.read('batcher.pkl'))
+        return Model(config, scaler, batcher, weights=weights)
