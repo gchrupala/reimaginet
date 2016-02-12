@@ -6,11 +6,15 @@ from  sklearn.preprocessing import StandardScaler
 from imaginet.simple_data import SimpleData, characters
 import sys
 import os
+import os.path
 import cPickle as pickle
 import gzip
 from evaluate import ranking
 import random
 from collections import Counter
+import cStringIO as StringIO
+import zipfile
+import json
 
 def train(dataset='coco',
           datapath='.',
@@ -28,6 +32,7 @@ def train(dataset='coco',
           validate_period=64*1000,
           limit=None,
           seed=None):
+    model_settings = {}
     sys.setrecursionlimit(50000) # needed for pickling models
     if seed is not None:
         random.seed(seed)
@@ -35,13 +40,31 @@ def train(dataset='coco',
     prov = dp.getDataProvider(dataset, root=datapath)
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
-    data.dump(model_path)
-    encoder = Encoder(size_vocab=data.mapper.size(), size_embed=size_embed, size=size_hidden, depth=depth)
-    imagine = Imagine(encoder, size=4096)
-    trainer = TaskTrainer({'imagine': imagine}, max_norm=max_norm)
-    do_training(trainer, 'imagine', data, epochs, validate_period, model_path)
-    
-def do_training(trainer, taskid, data, epochs, validate_period, model_path):
+    config = dict(size_vocab=data.mapper.size(), size_embed=size_embed, size_hidden=size_hidden, depth=depth,
+                  size=4096, max_norm=max_norm)
+    trainer = make_trainer(config)
+    do_training(trainer, 'imagine', config, data, epochs, validate_period, model_path)
+
+def make_trainer(config, weights=None):
+    encoder = Encoder(size_vocab=config['size_vocab'],
+                      size_embed=config['size_embed'],
+                      size=config['size_hidden'],
+                      depth=config['depth'])
+    imagine = Imagine(encoder, size=config['size'])
+    trainer = TaskTrainer({'imagine': imagine}, max_norm=config['max_norm'])
+    if weights is not None:
+        assert len(trainer.params()) == len(weights)
+        for param, weight in zip(trainer.params(), weights):
+            param.set_value(weight)
+    return trainer
+
+def package(trainer, config, data):
+    return {'config': config,
+            'scaler': data.scaler,
+            'batcher': data.batcher,
+            'weights': [ param.get_value() for param in trainer.params() ] }
+            
+def do_training(trainer, taskid, config, data, epochs, validate_period, model_path):
     task = trainer.tasks[taskid]
     def valid_loss():
         result = []
@@ -61,25 +84,21 @@ def do_training(trainer, taskid, data, epochs, validate_period, model_path):
                 if j*data.batch_size % validate_period == 0:
                         print epoch, j, 0, "valid", "".join([str(numpy.mean(valid_loss()))])
                 sys.stdout.flush()
-            pickle.dump(trainer, 
-                        gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'),
-                        protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump(trainer, 
-                    gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'), 
-                    protocol=pickle.HIGHEST_PROTOCOL)
+            save(package(trainer, config, data), path='model.{0}.zip'.format(epoch))
+    save(package(trainer, config, data), path='model.zip')
     
 def evaluate(dataset='coco',
              datapath='.',
-             model_path='.',
-             model_name='model.pkl.gz',
+             model_path='model.zip',
              batch_size=128,
              tokenize=characters
             ):
-    M = load(model_path, model_name=model_name)
-    scaler = M['scaler']
-    task = M['model'].tasks['imagine']
-    batcher = M['batcher']
-    mapper = M['batcher'].mapper
+    pack = load(path=model_path)
+    trainer = make_trainer(pack['config'], pack['weights'])
+    scaler = pack['scaler']
+    task = trainer.tasks['imagine']
+    batcher = pack['batcher']
+    mapper = pack['batcher'].mapper
     prov   = dp.getDataProvider(dataset, root=datapath)
     inputs = list(mapper.transform([tokenize(sent) for sent in prov.iterSentences(split='val') ]))
     predictions = numpy.vstack([ task.predict(batcher.batch_inp(batch))
@@ -93,10 +112,25 @@ def evaluate(dataset='coco',
                                 for i in range(len(sents)) ] )
     return ranking(img_fs, predictions, correct_img, ns=(1,5,10), exclude_self=False)
 
-def load(d, model_name='model.pkl.gz'):
-    def load_pklgz(f):
-        return pickle.load(gzip.open(os.path.join(d, f)))
-    batcher, scaler, model = map(load_pklgz, ['batcher.pkl.gz','scaler.pkl.gz', model_name])
-    mapper = batcher.mapper
-    return {'batcher': batcher, 'scaler': scaler, 'model': model }
-
+def save(pack, path='model.zip'):
+    """Save the pack of data needed to reconstruct model pipeline.
+    """
+    zf = zipfile.ZipFile(path, 'w')
+    buf = StringIO.StringIO()
+    numpy.save(buf, pack['weights'])
+    zf.writestr('weights.npy', buf.getvalue(),                compress_type=zipfile.ZIP_DEFLATED)
+    zf.writestr('config.json', json.dumps(pack['config']),    compress_type=zipfile.ZIP_DEFLATED)
+    zf.writestr('scaler.pkl',  pickle.dumps(pack['scaler']),  compress_type=zipfile.ZIP_DEFLATED)
+    zf.writestr('batcher.pkl', pickle.dumps(pack['batcher']), compress_type=zipfile.ZIP_DEFLATED)
+    
+def load(path='model.zip'):
+    """Load pack needed to reconstruct model pipeline.
+    """
+    pack = {}
+    with zipfile.ZipFile(path, 'r') as zf:
+        buf = StringIO.StringIO(zf.read('weights.npy'))
+        pack['weights'] = numpy.load(buf)
+        pack['config']  = json.loads(zf.read('config.json'))
+        pack['scaler']  = pickle.loads(zf.read('scaler.pkl'))
+        pack['batcher'] = pickle.loads(zf.read('batcher.pkl'))
+    return pack
