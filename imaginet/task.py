@@ -138,7 +138,13 @@ def predict_img(model, sents, batch_size=128):
 def representation(model, sents, batch_size=128):
     task = model.trainer.tasks['imagine']
     inputs = list(model.batcher.mapper.transform(sents))
-    return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))
+    return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))[:,-1,:]
+                            for batch in util.grouper(inputs, batch_size) ])
+
+def states(model, sent, batch_size=128):
+    task = model.trainer.tasks['imagine']
+    inputs = list(model.batcher.mapper.transform([sent]))
+    return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))[0,:,:]
                             for batch in util.grouper(inputs, batch_size) ])
 
 def make_trainer(config, weights=None):
