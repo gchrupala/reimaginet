@@ -3,7 +3,7 @@ from imaginet.task import *
 import numpy
 import imaginet.data_provider as dp
 from  sklearn.preprocessing import StandardScaler
-from imaginet.simple_data import SimpleData, compressed
+from imaginet.simple_data import SimpleData, characters
 import sys
 import os
 import cPickle as pickle
@@ -15,7 +15,7 @@ from collections import Counter
 def train(dataset='coco',
           datapath='.',
           model_path='.',
-          tokenize=compressed,
+          tokenize=characters,
           max_norm=None,
           min_df=10,
           scale=True,
@@ -72,7 +72,8 @@ def evaluate(dataset='coco',
              datapath='.',
              model_path='.',
              model_name='model.pkl.gz',
-             batch_size=128
+             batch_size=128,
+             tokenize=characters
             ):
     M = load(model_path, model_name=model_name)
     scaler = M['scaler']
@@ -80,7 +81,7 @@ def evaluate(dataset='coco',
     batcher = M['batcher']
     mapper = M['batcher'].mapper
     prov   = dp.getDataProvider(dataset, root=datapath)
-    inputs = list(mapper.transform([compressed(sent) for sent in prov.iterSentences(split='val') ]))
+    inputs = list(mapper.transform([tokenize(sent) for sent in prov.iterSentences(split='val') ]))
     predictions = numpy.vstack([ task.predict(batcher.batch_inp(batch))
                           for batch in grouper(inputs, batch_size) ])
 

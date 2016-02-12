@@ -8,6 +8,8 @@ import scipy.io
 import codecs
 from collections import defaultdict
 import itertools
+import gzip
+import sys
 
 class BasicDataProvider:
   def __init__(self, dataset, root='.', extra_train=False):
@@ -19,9 +21,22 @@ class BasicDataProvider:
 
     # load the dataset into memory
     dataset_path = os.path.join(self.dataset_root, 'dataset.json')
-    
+    ipa_path     = os.path.join(self.dataset_root, 'dataset.ipa.jsonl.gz')
     self.dataset = json.load(open(dataset_path, 'r'))
 
+    # load ipa
+    try:
+      IPA = {}
+      for line in gzip.open(ipa_path):
+        item = json.loads(line)
+        IPA[item['sentid']] = item['ipa']
+        # add ipa field to dataset
+      for image in self.dataset['images']:
+        for sentence in image['sentences']:
+          sentence['ipa'] = IPA[sentence['sentid']]
+    except IOError:
+      sys.stderr.write("Could not read file {}: IPA transcription not available\n".format(ipa_path))
+      
     # load the image features into memory
     features_path = os.path.join(self.dataset_root, 'vgg_feats.mat')
     

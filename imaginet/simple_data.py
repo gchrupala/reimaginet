@@ -19,6 +19,9 @@ def characters(sentence):
 def compressed(sentence):
     return [ c.lower() for c in sentence['raw'] if c in string.letters ]
 
+def phonemes(sentence):
+    return [ c for c in sentence['ipa'] if c not in string.whitespace ]
+
 class NoScaler():
     def __init__(self):
         pass
