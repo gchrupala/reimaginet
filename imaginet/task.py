@@ -128,24 +128,46 @@ class TaskTrainer(object):
     def params(self):
         return params(*self.tasks.values())
     
+## Projections 
 
 def predict_img(model, sents, batch_size=128):
+    """Project sents to the visual space using model.
+    
+    For each sentence returns the predicted vector of visual features.
+    """
     task = model.trainer.tasks['imagine']
     inputs = list(model.batcher.mapper.transform(sents))
     return numpy.vstack([ task.predict(model.batcher.batch_inp(batch))
                             for batch in util.grouper(inputs, batch_size) ])
     
 def representation(model, sents, batch_size=128):
+    """Project sents to hidden state space using model.
+    
+    For each sentence returns a vector corresponding the activation of the hidden layer 
+    at the end-of-sentence symbol.
+    """
     task = model.trainer.tasks['imagine']
     inputs = list(model.batcher.mapper.transform(sents))
     return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))[:,-1,:]
                             for batch in util.grouper(inputs, batch_size) ])
 
-def states(model, sent, batch_size=128):
+def states(model, sent):
+    """Project each symbol in sent to hidden state space using model.
+    
+    For each sentence returns a matrix corresponding to the activations of the hidden layer at each 
+    position in the sentence.
+    """
     task = model.trainer.tasks['imagine']
     inputs = list(model.batcher.mapper.transform([sent]))
-    return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))[0,:,:]
-                            for batch in util.grouper(inputs, batch_size) ])
+    return task.representation(model.batcher.batch_inp(inputs))[0,:,:]
+
+# Accessing model internals
+
+def embeddings(model):
+    return model.trainer.tasks['imagine'].encoder.Embed.params()[0].get_value()
+
+def symbols(model):
+    return model.batcher.mapper.ids.decoder
 
 def make_trainer(config, weights=None):
     encoder = Encoder(size_vocab=config['size_vocab'],
