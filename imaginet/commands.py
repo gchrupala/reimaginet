@@ -39,7 +39,7 @@ def train(dataset='coco',
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_vocab=data.mapper.size(), size_embed=size_embed, size_hidden=size_hidden, depth=depth,
                   size=4096, max_norm=max_norm)
-    model = Model(config, data.scaler, batcher.batcher)
+    model = Model(config, data.scaler, data.batcher)
     do_training(model, data, epochs, validate_period, model_path)
 
 def do_training(model, data, epochs, validate_period, model_path):
