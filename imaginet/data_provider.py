@@ -29,7 +29,7 @@ class BasicDataProvider:
       IPA = {}
       for line in gzip.open(ipa_path):
         item = json.loads(line)
-        IPA[item['sentid']] = item['ipa']
+        IPA[item['sentid']] = item['phonemes']
         # add ipa field to dataset
       for image in self.dataset['images']:
         for sentence in image['sentences']:
