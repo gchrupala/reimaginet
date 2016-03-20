@@ -73,8 +73,11 @@ class Bundle():
     
     """Interface for combinations of task/data."""
     
-    def weights(self):
+    def params(self):
         raise NotImplementedError
+        
+    def weights(self):
+        return [ params.get_value() for param in self.params() ]
     
     def config(self):
         raise NotImplementedError

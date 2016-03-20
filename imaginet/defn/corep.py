@@ -1,3 +1,10 @@
+import funktional.layer as layer
+from funktional.layer import params
+import imaginet.task as task
+from funktional.util import autoassign
+import funktional.util as util
+import theano.tensor as T
+
 class Encoder(layer.Layer):
 
     def __init__(self, size_vocab, size_embed, size, depth=1):
@@ -32,7 +39,7 @@ class EncoderTask(task.Task):
     def config(self):
         raise NotImplementedError    
 
-class Corep(Bundle):
+class Corep(task.Bundle):
     
     def __init__(self, data_c, data_w, size_embed_c, size_embed_w, size, depth_c, depth_w, size_target):
         autoassign(locals())
@@ -50,11 +57,15 @@ class Corep(Bundle):
     
     def config(self):
         return dict(size=self.size, size_target=self.size_target, 
-                      c=dict(size_vocab=data_c.mapper.size(), size_embed=self.size_embed_c, depth=self.depth_c), 
-                      w=dict(size_vocab=data_w.mapper.size(), size_embed=self.size_embed_w, depth=self.depth_w))
+                      c=dict(size_vocab=self.data_c.mapper.size(), 
+                             size_embed=self.size_embed_c, 
+                             depth=self.depth_c), 
+                      w=dict(size_vocab=self.data_w.mapper.size(), 
+                             size_embed=self.size_embed_w, 
+                             depth=self.depth_w))
     def weights(self):
         return [ param.get_value() for param in self.params() ]
     
     def data(self):
-        return dict(c=dict(batcher=data_c.batcher, scaler=data_c.scaler),
-                    w=dict(batcher=data_w.batcher, scaler=data_w.scaler))
+        return dict(c=dict(batcher=self.data_c.batcher, scaler=self.data_c.scaler),
+                    w=dict(batcher=self.data_w.batcher, scaler=self.data_w.scaler))
