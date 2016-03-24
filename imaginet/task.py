@@ -194,7 +194,7 @@ class Model(object):
         """
         zf = zipfile.ZipFile(path, 'w')
         buf = StringIO.StringIO()
-        numpy.save(buf, [ param.get_values() for param in self.trainer.params() ])
+        numpy.save(buf, [ param.get_value() for param in self.trainer.params() ])
         zf.writestr('weights.npy', buf.getvalue(),                compress_type=zipfile.ZIP_DEFLATED)
         zf.writestr('config.json', json.dumps(self.config),    compress_type=zipfile.ZIP_DEFLATED)
         zf.writestr('scaler.pkl',  pickle.dumps(self.scaler),  compress_type=zipfile.ZIP_DEFLATED)
