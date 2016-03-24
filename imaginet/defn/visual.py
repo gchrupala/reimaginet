@@ -8,6 +8,11 @@ from funktional.util import autoassign
 import funktional.util as util
 import theano.tensor as T
 import theano
+import zipfile
+import numpy
+import StringIO
+import json
+import cPickle as pickle
 
 class Encoder(Layer):
 
@@ -51,25 +56,44 @@ class Visual(task.Task):
 
 class VisualModel(task.Bundle):
     
-    def __init__(self, dataset, size_embed, size, depth=1, size_target=4096, max_norm=None, lr=0.0002):
-        autoassign(locals())
-        self.Visual = Visual(self.dataset.mapper.size(), self.size_embed, self.size, 
-                               self.depth, self.size_target, max_norm=None, lr=0.0002)
+    def __init__(self, data, config, weights=None):
+        self.config = dict(depth=1, size_target=4096, max_norm=None, lr=0.0002)
+        self.config.update(config)
+        self.data = data
+        self.Visual = Visual(self.data['batcher'].mapper.size(), 
+                             self.config['size_embed'], 
+                             self.config['size'], 
+                             self.config['depth'], 
+                             self.config['size_target'], 
+                             max_norm=self.config['max_norm'], 
+                             lr=self.config['lr']
+                            )
+        if weights is not None:
+            assert len(self.Visual.params())==len(weights)
+            for param, weight in zip(self.Visual.params(), weights):
+                param.set_value(weight)
         self.Visual.compile()
         self.Visual._make_representation()
-    
+                 
     def params(self):
         return self.Visual.params()
     
-    def config(self):
-        return dict(size_embed=self.size_embed, size=self.size, 
-                    depth=self.depth, size_target=self.size_target,
-                    size_vocab=self.self.dataset.mapper.size())
-    def data(self):
-        return dict(batcher=self.dataset.batcher, scaler=self.dataset.scaler)
-        
-        
+    def get_config(self):
+        return self.config
     
+    def get_data(self):
+        return self.data
+
+def load(path):
+    """Load data and reconstruct model."""
+    with zipfile.ZipFile(path,'r') as zf:
+        buf = StringIO.StringIO(zf.read('weights.npy'))
+        weights = numpy.load(buf)
+        config  = json.loads(zf.read('config.json'))
+        data  = pickle.loads(zf.read('data.pkl'))
+    return VisualModel(data, config, weights=weights)
+                 
+
 ## Projections 
 
 def predict_img(model, sents, batch_size=128):

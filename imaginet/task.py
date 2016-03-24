@@ -34,13 +34,7 @@ class Task(Layer):
    
     def cost(self, target, prediction):
         raise NotImplementedError
-           
-    def config(self):
-        raise NotImplementedError
-        
-#    def params(self):
-#        raise NotImplementedError
-        
+                  
     def _make_train(self):
         """Compile function for training."""
         with context.context(training=True):
@@ -77,12 +71,12 @@ class Bundle():
         raise NotImplementedError
         
     def weights(self):
-        return [ params.get_value() for param in self.params() ]
+        return [ param.get_value() for param in self.params() ]
     
-    def config(self):
+    def get_config(self):
         raise NotImplementedError
     
-    def data(self):
+    def get_data(self):
         raise NotImplementedError
     
     def save(self, path):
@@ -90,6 +84,6 @@ class Bundle():
         buf = StringIO.StringIO()
         numpy.save(buf, self.weights())
         zf.writestr('weights.npy', buf.getvalue(),            compress_type=zipfile.ZIP_DEFLATED)
-        zf.writestr('config.json', json.dumps(self.config()), compress_type=zipfile.ZIP_DEFLATED)
-        zf.writestr('data.pkl',    pickle.dumps(self.data()), compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('config.json', json.dumps(self.get_config()), compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('data.pkl',    pickle.dumps(self.get_data()), compress_type=zipfile.ZIP_DEFLATED)
     
