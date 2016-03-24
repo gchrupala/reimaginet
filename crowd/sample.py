@@ -7,7 +7,7 @@ from pycocotools.coco import COCO
 import numpy
 import random
 import csv
-import random
+
 
 def main():
     random.seed(123)
@@ -24,7 +24,7 @@ def main():
             else:
                 imgCat[img]=set([cat])
 
-    with open('hard1.csv','w') as file:
+    with open('hard2.csv','w') as file:
         writer = csv.writer(file)
         writer.writerow(["desc", "url_1", "url_2", "url_3", "url_4" ])
         imgIds = random.sample(coco.getImgIds(), 1000)
