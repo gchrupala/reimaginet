@@ -57,9 +57,12 @@ class Visual(task.Task):
 class VisualModel(task.Bundle):
     
     def __init__(self, data, config, weights=None):
-        self.config = dict(depth=1, size_target=4096, max_norm=None, lr=0.0002)
+        self.config = dict(size_embed=1024, size=1024, depth=3, 
+                           size_target=4096, max_norm=None, lr=0.0002)
         self.config.update(config)
         self.data = data
+        self.batcher = data['batcher']
+        self.scaler = data['scaler']
         self.Visual = Visual(self.data['batcher'].mapper.size(), 
                              self.config['size_embed'], 
                              self.config['size'], 
