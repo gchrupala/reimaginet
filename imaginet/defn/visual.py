@@ -54,6 +54,11 @@ class Visual(task.Task):
             rep = self.Encode(*self.inputs)
         return theano.function(self.inputs, rep)
 
+    def _make_pile(self):
+        with context.context(training=False):
+            rep = self.Encode.GRU.intermediate(self.Encode.Embed(*self.inputs))
+        return theano.function(self.inputs, rep)
+
 class VisualModel(task.Bundle):
     
     def __init__(self, data, config, weights=None):
@@ -76,7 +81,8 @@ class VisualModel(task.Bundle):
             for param, weight in zip(self.Visual.params(), weights):
                 param.set_value(weight)
         self.Visual.compile()
-        self.Visual._make_representation()
+        self.Visual.representation = self.Visual._make_representation()
+        self.Visual.pile = self.Visual._make_pile()
                  
     def params(self):
         return self.Visual.params()
@@ -129,6 +135,17 @@ def states(model, sent):
     task = model.Visual
     inputs = list(model.batcher.mapper.transform([sent]))
     return task.representation(model.batcher.batch_inp(inputs))[0,:,:]
+
+def pile(model, sent):
+    """Project each symbol in sent to hidden state spaces corresponding to layers using model.
+    
+    For each sentence returns a tensor corresponding to the activations of the hidden layers at each 
+    position in the sentence.
+    """
+    task = model.Visual
+    inputs = list(model.batcher.mapper.transform([sent]))
+    return task.pile(model.batcher.batch_inp(inputs))[0]
+    
 
 # Accessing model internals
 
