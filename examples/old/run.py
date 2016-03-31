@@ -1,12 +1,11 @@
 import json
 from imaginet.commands import train, evaluate
-from imaginet.simple_data import phonemes, characters
+from imaginet.simple_data import phonemes
 from funktional.util import linear, clipped_rectify, CosineDistance
-import numpy
 dataset = 'coco'
 datapath = "/home/gchrupala/repos/reimaginet"
-epochs = 9
-tokenize=phonemes
+epochs = 10
+
 
 train(dataset=dataset,
       datapath=datapath,
@@ -20,17 +19,14 @@ train(dataset=dataset,
       size_embed=256,
       size_hidden=1024,
       depth=3,
-      tokenize=tokenize,
-      validate_period=64*1000,
-      seed = 41)
+      tokenize=phonemes,
+      validate_period=64*1000)
 
-for epoch in range(1,epochs+1):
+for epoch in range(7, 8):
     
     scores = evaluate(dataset=dataset,
                       datapath=datapath,
-                      tokenize=tokenize,
+                      tokenize=phonemes,
                       batch_size=64,
                       model_path='model.{}.zip'.format(epoch))
     json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
-    print epoch, numpy.mean(scores['recall'][5])
-
