@@ -58,3 +58,33 @@ class Cdist():
                                       in range(self.batch_size, A.shape[0], self.batch_size) ])
         cosines = numpy.vstack([self.cosine(chunk, B) for chunk in chunks])                    
         return 1 - cosines 
+
+import json
+import imaginet.defn.visual as visual
+from imaginet.simple_data import phonemes
+from scipy.spatial.distance import cosine
+
+
+def eval_bestimg(modelpath, testpath, tokenize=phonemes):
+    rows = [ json.loads(line) for line in open(testpath)]
+    model = visual.load(path=modelpath)
+    scaler = model.scaler
+    batcher = model.batcher
+    mapper = batcher.mapper
+    img_fs = {}
+    sent_ids = {}
+    prov = dp.getDataProvider('coco', root='/home/gchrupala/repos/reimaginet')
+    for split in ['val','test','restval']:
+        for img in prov.iterImages(split=split):
+            img_fs[img['cocoid']] = scaler.transform([ img['feat'] ])[0]
+            for sent in img['sentences']:
+                sent_ids[sent['sentid']]=sent
+    def response(row):
+        sent = sent_ids[row['meta']['id']]
+        inputs = list(mapper.transform([tokenize(sent) ]))
+        pred = model.Visual.predict(batcher.batch_inp(inputs))[0]
+        return 1+numpy.argmin([ cosine(pred, img_fs[cocoid]) for cocoid in row['meta']['candidates']])
+    preds = numpy.array([ response(row) for row in rows ])
+    target = numpy.array([ row['meta']['response'] for row in rows])
+    return numpy.mean(preds==target)
+    

@@ -86,4 +86,3 @@ def evaluate(dataset='coco',
                                   for j in range(len(images)) ]
                                 for i in range(len(sents)) ] )
     return ranking(img_fs, predictions, correct_img, ns=(1,5,10), exclude_self=False)
-
