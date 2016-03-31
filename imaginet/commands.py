@@ -1,9 +1,10 @@
 from funktional.util import grouper, autoassign
 from imaginet.task import *
+import imaginet.defn.visual as visual
 import numpy
 import imaginet.data_provider as dp
 from  sklearn.preprocessing import StandardScaler
-from imaginet.simple_data import SimpleData, characters
+from imaginet.simple_data import SimpleData, characters, phonemes
 import sys
 import os
 import os.path
@@ -16,7 +17,7 @@ from collections import Counter
 def train(dataset='coco',
           datapath='.',
           model_path='.',
-          tokenize=characters,
+          tokenize=phonemes,
           max_norm=None,
           min_df=10,
           scale=True,
@@ -29,7 +30,6 @@ def train(dataset='coco',
           validate_period=64*1000,
           limit=None,
           seed=None):
-    model_settings = {}
     # sys.setrecursionlimit(50000) # needed for pickling models
     if seed is not None:
         random.seed(seed)
@@ -37,13 +37,13 @@ def train(dataset='coco',
     prov = dp.getDataProvider(dataset, root=datapath)
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
-    config = dict(size_vocab=data.mapper.size(), size_embed=size_embed, size_hidden=size_hidden, depth=depth,
-                  size=4096, max_norm=max_norm)
-    model = Model(config, data.scaler, data.batcher)
+    config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
+                  size_target=4096, max_norm=max_norm)
+    model = visual.VisualModel(dict(scaler=data.scaler, batcher=data.batcher), config)
     do_training(model, data, epochs, validate_period, model_path)
 
 def do_training(model, data, epochs, validate_period, model_path):
-    task = model.trainer.tasks['imagine']
+    task = model.Visual
     def valid_loss():
         result = []
         for item in data.iter_valid_batches():
@@ -69,17 +69,16 @@ def evaluate(dataset='coco',
              datapath='.',
              model_path='model.zip',
              batch_size=128,
-             tokenize=characters
+             tokenize=phonemes
             ):
-    model = load(path=model_path)
-    trainer = model.trainer
+    model = visual.load(path=model_path)
+    task = model.Visual
     scaler = model.scaler
-    task = trainer.tasks['imagine']
     batcher = model.batcher
     mapper = batcher.mapper
     prov   = dp.getDataProvider(dataset, root=datapath)
     sents_tok =  [ tokenize(sent) for sent in prov.iterSentences(split='val') ]
-    predictions = predict_img(model, sents_tok, batch_size=batch_size)
+    predictions = visual.predict_img(model, sents_tok, batch_size=batch_size)
     sents  = list(prov.iterSentences(split='val'))
     images = list(prov.iterImages(split='val'))
     img_fs = list(scaler.transform([ image['feat'] for image in images ]))
@@ -87,4 +86,3 @@ def evaluate(dataset='coco',
                                   for j in range(len(images)) ]
                                 for i in range(len(sents)) ] )
     return ranking(img_fs, predictions, correct_img, ns=(1,5,10), exclude_self=False)
-
