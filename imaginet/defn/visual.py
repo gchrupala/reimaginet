@@ -126,26 +126,26 @@ def representation(model, sents, batch_size=128):
     return numpy.vstack([ task.representation(model.batcher.batch_inp(batch))[:,-1,:]
                             for batch in util.grouper(inputs, batch_size) ])
 
-def states(model, sent):
-    """Project each symbol in sent to hidden state space using model.
+def states(model, sents, batch_size=128):
+    """Project each symbol in each sentence in sents to hidden state space using model.
     
-    For each sentence returns a matrix corresponding to the activations of the hidden layer at each 
+    For each sentence returns a matrix corresponding to the activations of the top hidden layer at each 
     position in the sentence.
     """
-    task = model.Visual
-    inputs = list(model.batcher.mapper.transform([sent]))
-    return task.representation(model.batcher.batch_inp(inputs))[0,:,:]
+    return [ r[:,-1,:] for r in pile(model, sents, batch_size=128) ]
 
-def pile(model, sent):
-    """Project each symbol in sent to hidden state spaces corresponding to layers using model.
+def pile(model, sents, batch_size=128):
+    """Project each symbol in each sentence in sents to hidden state spaces corresponding to layers using model.
     
-    For each sentence returns a tensor corresponding to the activations of the hidden layers at each 
+    For each sentence returns a 3D tensor corresponding to the activations of the hidden layers at each 
     position in the sentence.
     """
     task = model.Visual
-    inputs = list(model.batcher.mapper.transform([sent]))
-    return task.pile(model.batcher.batch_inp(inputs))[0]
-    
+    lens = map(len, sents)
+    inputs = list(model.batcher.mapper.transform(sents))
+    rs = [ r for batch in util.grouper(inputs, batch_size)
+               for r in task.pile(model.batcher.batch_inp(batch)) ]    
+    return [ r[-l-1:,:,:] for (r,l) in zip(rs, lens) ]
 
 # Accessing model internals
 
