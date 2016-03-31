@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='imaginet',
-      version='0.1',
+      version='0.3',
       description='Visually grounded word and sentence representations',
       url='https://github.com/gchrupala/reimaginet',
       author='Grzegorz Chrupała',
@@ -11,6 +11,6 @@ setup(name='imaginet',
       packages=['imaginet'],
       install_requires=[
           'Theano',
-          'funktional'
+          'funktional>=0.4'
                     ],
       zip_safe=False)
