@@ -1,6 +1,7 @@
 from funktional.util import grouper, autoassign
-from imaginet.task import *
+import imaginet.task
 import imaginet.defn.visual as visual
+import imaginet.defn.lm as lm
 import numpy
 import imaginet.data_provider as dp
 from  sklearn.preprocessing import StandardScaler
@@ -17,6 +18,7 @@ from collections import Counter
 def train(dataset='coco',
           datapath='.',
           model_path='.',
+          task=visual.Visual,
           tokenize=phonemes,
           max_norm=None,
           min_df=10,
@@ -27,7 +29,7 @@ def train(dataset='coco',
           size_embed=128,
           size_hidden=512,
           depth=2,
-          validate_period=64*1000,
+          validate_period=100,
           limit=None,
           seed=None):
     # sys.setrecursionlimit(50000) # needed for pickling models
@@ -38,28 +40,25 @@ def train(dataset='coco',
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
-                  size_target=4096, max_norm=max_norm)
-    model = visual.VisualModel(dict(scaler=data.scaler, batcher=data.batcher), config)
-    do_training(model, data, epochs, validate_period, model_path)
+                  size_target=4096, max_norm=max_norm, lr=0.0002)
+    model = imaginet.task.GenericBundle(dict(scaler=data.scaler, batcher=data.batcher), config, task)
+    trainer(model, data, epochs, validate_period, model_path)
 
-def do_training(model, data, epochs, validate_period, model_path):
-    task = model.Visual
+def trainer(model, data, epochs, validate_period, model_path):
     def valid_loss():
         result = []
         for item in data.iter_valid_batches():
-            inp, target_v, _, _ = item
-            result.append(task.loss_test(inp, target_v))
+            result.append(model.task.loss_test(*model.task.args(item)))
         return result
     for epoch in range(1, epochs + 1):
-            print len(task.params())
+            print len(model.task.params())
             costs = Counter()
             for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
-                inp, target_v, _, _ = item
-                cost = task.train(inp, target_v)
+                cost = model.task.train(*model.task.args(item))
                 costs += Counter({'cost':cost, 'N':1})
                 print epoch, j, j*data.batch_size, "train", "".join([str(costs['cost']/costs['N'])])
-                if j*data.batch_size % validate_period == 0:
+                if j % validate_period == 0:
                         print epoch, j, 0, "valid", "".join([str(numpy.mean(valid_loss()))])
                 sys.stdout.flush()
             model.save(path='model.{0}.zip'.format(epoch))
@@ -69,10 +68,11 @@ def evaluate(dataset='coco',
              datapath='.',
              model_path='model.zip',
              batch_size=128,
+             task=visual.Visual,
              tokenize=phonemes
             ):
-    model = visual.load(path=model_path)
-    task = model.Visual
+    model = imaginet.task.load(path=model_path)
+    task = model.task
     scaler = model.scaler
     batcher = model.batcher
     mapper = batcher.mapper

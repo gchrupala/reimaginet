@@ -63,6 +63,7 @@ class Task(Layer):
         self.loss_test = self._make_loss_test()
         self.predict   = self._make_predict()
 
+        
 class Bundle():
     
     """Interface for combinations of task/data."""
@@ -86,4 +87,74 @@ class Bundle():
         zf.writestr('weights.npy', buf.getvalue(),            compress_type=zipfile.ZIP_DEFLATED)
         zf.writestr('config.json', json.dumps(self.get_config()), compress_type=zipfile.ZIP_DEFLATED)
         zf.writestr('data.pkl',    pickle.dumps(self.get_data()), compress_type=zipfile.ZIP_DEFLATED)
+        
+class GenericBundle(Bundle):
+    """Generic subclass of Bundle which stores common types of settings."""
+    def __init__(self, data, config, task, weights=None):
+        self.config = config
+        self.config['task'] = pickle.dumps(task)
+        self.data = data
+        self.batcher = data['batcher']
+        self.scaler = data['scaler']
+        self.config['size_vocab'] = self.data['batcher'].mapper.size()
+        self.task = task(config)
+        if weights is not None:
+            assert len(self.task.params())==len(weights)
+            for param, weight in zip(self.params(), weights):
+                param.set_value(weight)
+        self.task.compile()
+        self.task.representation = self.task._make_representation()
+        self.task.pile = self.task._make_pile()
+    
+    def params(self):
+        return self.task.params()
+    
+    def get_config(self):
+        return self.config
+    
+    def get_data(self):
+        return self.data
+    
+
+# The following functions work on GenericBundle        
+        
+def load(path):
+    """Load data and reconstruct model."""
+    with zipfile.ZipFile(path,'r') as zf:
+        buf = StringIO.StringIO(zf.read('weights.npy'))
+        weights = numpy.load(buf)
+        config  = json.loads(zf.read('config.json'))
+        data  = pickle.loads(zf.read('data.pkl'))
+        task = pickle.loads(config['task'].encode('utf-8'))
+    return GenericBundle(data, config, task, weights=weights)
+    
+def representation(model, sents, batch_size=128):
+    """Project sents to hidden state space using model.
+    
+    For each sentence returns a vector corresponding the activation of the hidden layer 
+    at the end-of-sentence symbol.
+    """
+    inputs = list(model.batcher.mapper.transform(sents))
+    return numpy.vstack([ model.task.representation(model.batcher.batch_inp(batch))[:,-1,:]
+                            for batch in util.grouper(inputs, batch_size) ])
+
+def states(model, sents, batch_size=128):
+    """Project each symbol in each sentence in sents to hidden state space using model.
+    
+    For each sentence returns a matrix corresponding to the activations of the top hidden layer at each 
+    position in the sentence.
+    """
+    return [ r[:,-1,:] for r in pile(model, sents, batch_size=128) ]
+
+def pile(model, sents, batch_size=128):
+    """Project each symbol in each sentence in sents to hidden state spaces corresponding to layers using model.
+    
+    For each sentence returns a 3D tensor corresponding to the activations of the hidden layers at each 
+    position in the sentence.
+    """
+    lens = map(len, sents)
+    inputs = list(model.batcher.mapper.transform(sents))
+    rs = [ r for batch in util.grouper(inputs, batch_size)
+               for r in model.task.pile(model.batcher.batch_inp(batch)) ]    
+    return [ r[-l-1:,:,:] for (r,l) in zip(rs, lens) ]
     
