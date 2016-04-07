@@ -21,7 +21,7 @@ train(dataset=dataset,
       size_hidden=1024,
       depth=3,
       tokenize=tokenize,
-      validate_period=64*1000,
+      validate_period=100,
       seed = 41)
 
 for epoch in range(1,epochs+1):
