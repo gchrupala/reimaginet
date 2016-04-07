@@ -70,3 +70,9 @@ def predict_img(model, sents, batch_size=128):
     inputs = list(model.batcher.mapper.transform(sents))
     return numpy.vstack([ model.task.predict(model.batcher.batch_inp(batch))
                             for batch in util.grouper(inputs, batch_size) ])
+
+def embeddings(model):
+    return model.task.Encode.Embed.params()[0].get_value()
+
+def symbols(model):
+    return model.batcher.mapper.ids.decoder

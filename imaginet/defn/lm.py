@@ -60,4 +60,9 @@ class LM(imaginet.task.Task):
             rep = self.Decode.GRU.intermediate(self.Decode.Embed(*self.inputs))
         return theano.function(self.inputs, rep)
     
+def embeddings(model):
+    return model.task.Decode.Embed.params()[0].get_value()
+
+def symbols(model):
+    return model.batcher.mapper.ids.decoder
     
