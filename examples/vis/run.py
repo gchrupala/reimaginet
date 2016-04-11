@@ -1,5 +1,6 @@
 import json
 from imaginet.commands import train, evaluate
+from imaginet.defn.visual import Visual
 from imaginet.simple_data import phonemes, characters
 from funktional.util import linear, clipped_rectify, CosineDistance
 import numpy
@@ -11,6 +12,7 @@ tokenize=phonemes
 train(dataset=dataset,
       datapath=datapath,
       model_path='.',
+      task=Visual,
       epochs=epochs,
       min_df=10,
       max_norm=5.0,
