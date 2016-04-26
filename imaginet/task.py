@@ -84,9 +84,12 @@ class Bundle():
         zf = zipfile.ZipFile(path, 'w')
         buf = StringIO.StringIO()
         numpy.save(buf, self.weights())
-        zf.writestr('weights.npy', buf.getvalue(),            compress_type=zipfile.ZIP_DEFLATED)
-        zf.writestr('config.json', json.dumps(self.get_config()), compress_type=zipfile.ZIP_DEFLATED)
-        zf.writestr('data.pkl',    pickle.dumps(self.get_data()), compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('weights.npy', buf.getvalue(),
+                    compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('config.json', json.dumps(self.get_config()),
+                    compress_type=zipfile.ZIP_DEFLATED)
+        zf.writestr('data.pkl', pickle.dumps(self.get_data()),
+                    compress_type=zipfile.ZIP_DEFLATED)
         
 class GenericBundle(Bundle):
     """Generic subclass of Bundle which stores common types of settings."""
@@ -139,18 +142,23 @@ def representation(model, sents, batch_size=128):
                             for batch in util.grouper(inputs, batch_size) ])
 
 def states(model, sents, batch_size=128):
-    """Project each symbol in each sentence in sents to hidden state space using model.
+    """Project each symbol in each sentence in sents to hidden state space
+    using model.
     
-    For each sentence returns a matrix corresponding to the activations of the top hidden layer at each 
-    position in the sentence.
+    For each sentence returns a matrix corresponding to the
+    activations of the top hidden layer at each position in the
+    sentence.
+
     """
     return [ r[:,-1,:] for r in pile(model, sents, batch_size=128) ]
 
 def pile(model, sents, batch_size=128):
-    """Project each symbol in each sentence in sents to hidden state spaces corresponding to layers using model.
+    """Project each symbol in each sentence in sents to hidden state
+    spaces corresponding to layers using model.
     
-    For each sentence returns a 3D tensor corresponding to the activations of the hidden layers at each 
-    position in the sentence.
+    For each sentence returns a 3D tensor corresponding to the
+    activations of the hidden layers at each position in the sentence.
+
     """
     lens = map(len, sents)
     inputs = list(model.batcher.mapper.transform(sents))
