@@ -1,6 +1,6 @@
-from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
+from funktional.layer import Layer, Dense, BidiGRU, BidiGRUH0, StackedGRU, StackedGRUH0, \
                              Embedding, OneHot, Dropout, Sum, \
-                             last, softmax3d, params
+                             first, last, softmax3d, params
 import funktional.util as util
 from funktional.util import CosineDistance, CrossEntropy, linear, clipped_rectify
 from funktional.util import autoassign
@@ -39,25 +39,49 @@ class SumAdapter(Layer):
         return self.Sum(self.Dropout0(seq))
 
 class Visual(Layer):
-    def __init__(self, size_embed, size, size_out, depth, encoder=StackedGRUH0,
+    def __init__(self, size_embed, size, size_out, depth, encoder=StackedGRUH0, 
                  gru_activation=clipped_rectify,
                  visual_activation=linear,
                  dropout_prob=0.0):
         autoassign(locals())
         self.Encode = encoder(self.size_embed, self.size, self.depth,
-                                   activation=self.gru_activation,
-                                   dropout_prob=self.dropout_prob)
+                              activation=self.gru_activation,
+                              dropout_prob=self.dropout_prob)
         self.ToImg   = Dense(self.size, self.size_out)
 
     def params(self):
         return params(self.Encode, self.ToImg)
 
     def __call__(self, inp):
-        return self.visual_activation(self.ToImg(last(self.Encode(inp))))
+        return self.visual_activation(self.ToImg(self.Encode(inp)))
 
     def encode(self, inp):
-        return last(self.Encode(inp))
-            
+        return self.Encode(inp)
+
+class VisualBidi(Layer):
+    def __init__(self, size_embed, size, size_out, 
+                 gru_activation=clipped_rectify,
+                 visual_activation=linear):
+        autoassign(locals())
+        self.Encode = BidiGRUH0(self.size_embed, self.size, 
+                              activation=self.gru_activation)
+        self.ToImg   = Dense(self.size, self.size_out)
+
+    def params(self):
+        return params(self.Encode, self.ToImg)
+
+    def __call__(self, inp):
+        return self.visual_activation(self.ToImg(self.encode(inp)))
+
+    def encode(self, inp):
+        return bidi_encode(self.Encode, inp)
+
+def bidi_encode(layer, inp):
+    """Return encoded input from a bidirectional encoder."""
+    f,b = layer.bidi(inp)
+    return last(f) + first(b)
+
+    
 class MultitaskLMA(Layer):
     """Visual encoder combined with a textual task."""
     
@@ -73,7 +97,51 @@ class MultitaskLMA(Layer):
                                dropout_prob=self.dropout_prob)
         self.LM      =  StackedGRUH0(self.size_embed, self.size, self.depth,
                                      activation=self.gru_activation,
-                                     dropout_prob=self.dropout_prob)
+                                     dropout_prob=self.dropout_prob
+                                     )
+        self.ToTxt   =  Dense(self.size, self.size_vocab) # map to vocabulary
+
+    def params(self):
+        return params(self.Embed, self.Visual, self.LM, self.ToTxt)
+
+    def grow(self, ps):
+        self.LM.layer.grow(ps)
+        self.Visual.Encode.layer.grow(ps)
+        
+    def __call__(self, inp, output_prev, _img):
+        img_pred   = self.Visual(self.Embed(inp))
+        txt_pred   = softmax3d(self.ToTxt(self.LM(self.Embed(output_prev))))
+        return (img_pred, txt_pred)
+
+    
+    def predictor_v(self):
+        """Return function to predict image vector from input."""
+        input    = T.imatrix()
+        return theano.function([input],
+                         self.Visual(self.Embed(input)))
+
+    def predictor_r(self):
+        """Return function to predict representation from input."""
+        input = T.imatrix()
+        return theano.function([input], self.Visual.encode(self.Embed(input)))
+
+class MultitaskBiLMA(Layer):
+    """Visual encoder combined with a textual task (bidirectional GRUs)"""
+    
+    def __init__(self, size_vocab, size_embed, size, size_out, depth,
+                 gru_activation=clipped_rectify,
+                 visual_encoder=BidiGRUH0, visual_activation=linear, dropout_prob=0.0):
+        autoassign(locals())
+        assert self.depth == 1
+        assert self.dropout_prob == 0.0
+        self.Embed   =  Embedding(self.size_vocab, self.size_embed)
+        self.Visual  =  VisualBidi(self.size_embed, self.size, self.size_out, 
+                                   gru_activation=self.gru_activation,
+                                   visual_activation=self.visual_activation
+                                   )
+        self.LM      =  BidiGRUH0(self.size_embed, self.size, 
+                                  activation=self.gru_activation
+                                  )
         self.ToTxt   =  Dense(self.size, self.size_vocab) # map to vocabulary
 
     def params(self):

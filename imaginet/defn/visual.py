@@ -13,15 +13,16 @@ import numpy
 import StringIO
 import json
 import cPickle as pickle
+from theano.tensor.shared_randomstreams import RandomStreams
 
 class Encoder(Layer):
 
-    def __init__(self, size_vocab, size_embed, size, depth):
+    def __init__(self, size_vocab, size_embed, size, depth, residual=False):
         autoassign(locals())
 
         self.Embed = Embedding(self.size_vocab, self.size_embed)
         self.GRU = StackedGRUH0(self.size_embed, self.size, self.depth,
-                                   activation=clipped_rectify)
+                                   activation=clipped_rectify, residual=self.residual)
 
     def params(self):
         return params(self.Embed, self.GRU)
@@ -34,10 +35,15 @@ class Visual(task.Task):
     def __init__(self, config):
         autoassign(locals())
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.Encode = Encoder(config['size_vocab'], config['size_embed'], config['size'], config['depth'])
+        self.Encode = Encoder(config['size_vocab'], config['size_embed'], config['size'], config['depth'],
+                              residual=config.get('residual',False))
         self.ToImg  = Dense(config['size'], config['size_target'])
         self.inputs = [T.imatrix()]
         self.target = T.fmatrix()
+        self.config['margin'] = self.config.get('margin', False)
+        if self.config['margin']:
+            self.srng = RandomStreams(seed=234)
+        
         
     def params(self):
         return params(self.Encode, self.ToImg)
@@ -46,7 +52,14 @@ class Visual(task.Task):
         return self.ToImg(last(self.Encode(input)))
     
     def cost(self, target, prediction):
-        return CosineDistance(target, prediction)
+        if self.config['margin']:
+            return self.Margin(target, prediction, dist=CosineDistance, d=1)
+        else:
+            return CosineDistance(target, prediction)
+    
+    def Margin(self, U, V, dist=CosineDistance, d=1.0):
+        V_ = (V[self.srng.permutation(n=T.shape(V)[0], size=(1,)),]).reshape(T.shape(V)) # A bit silly making it nondet
+        return T.maximum(0.0, dist(U, V) - dist(U, V_) + d)
     
     def args(self, item):
         inp, target_v, out_prev, target_t = item
