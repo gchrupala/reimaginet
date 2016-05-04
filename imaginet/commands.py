@@ -14,6 +14,7 @@ import gzip
 from evaluate import ranking
 import random
 from collections import Counter
+from funktional.util import clipped_rectify
 
 def train(dataset='coco',
           datapath='.',
@@ -32,6 +33,7 @@ def train(dataset='coco',
           size_embed=128,
           size_hidden=512,
           depth=2,
+          activation='clipped_relu',
           validate_period=100,
           limit=None,
           seed=None):
@@ -43,8 +45,10 @@ def train(dataset='coco',
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
-                  size_target=4096, max_norm=max_norm, lr=lr, residual=residual, margin=margin)
-    model = imaginet.task.GenericBundle(dict(scaler=data.scaler, batcher=data.batcher), config, task)
+                  size_target=4096, max_norm=max_norm, lr=lr, residual=residual, margin=margin,
+                  activation=activation)
+    model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
+                                             batcher=data.batcher), config, task)
     trainer(model, data, epochs, validate_period, model_path)
 
 def trainer(model, data, epochs, validate_period, model_path):
