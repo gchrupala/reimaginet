@@ -1,5 +1,5 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
-                             Embedding, OneHot,  clipped_rectify, CosineDistance,\
+                             Embedding, OneHot,  clipped_rectify, clipped_elu, CosineDistance,\
                              last, softmax3d, params
 import funktional.context as context        
 from funktional.layer import params
@@ -17,12 +17,13 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 class Encoder(Layer):
 
-    def __init__(self, size_vocab, size_embed, size, depth, residual=False):
+    def __init__(self, size_vocab, size_embed, size, depth,
+                 residual=False, activation=clipped_rectify):
         autoassign(locals())
 
         self.Embed = Embedding(self.size_vocab, self.size_embed)
         self.GRU = StackedGRUH0(self.size_embed, self.size, self.depth,
-                                   activation=clipped_rectify, residual=self.residual)
+                                   activation=self.activation, residual=self.residual)
 
     def params(self):
         return params(self.Embed, self.GRU)
@@ -35,7 +36,11 @@ class Visual(task.Task):
     def __init__(self, config):
         autoassign(locals())
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.Encode = Encoder(config['size_vocab'], config['size_embed'], config['size'], config['depth'],
+        self.Encode = Encoder(config['size_vocab'],
+                              config['size_embed'], config['size'],
+                              config['depth'],
+                              activation=eval(config.get('activation',
+                                                         'clipped_rectify')),
                               residual=config.get('residual',False))
         self.ToImg  = Dense(config['size'], config['size_target'])
         self.inputs = [T.imatrix()]
@@ -58,7 +63,9 @@ class Visual(task.Task):
             return CosineDistance(target, prediction)
     
     def Margin(self, U, V, dist=CosineDistance, d=1.0):
-        V_ = (V[self.srng.permutation(n=T.shape(V)[0], size=(1,)),]).reshape(T.shape(V)) # A bit silly making it nondet
+        V_ = (V[self.srng.permutation(n=T.shape(V)[0],
+                                      size=(1,)),]).reshape(T.shape(V))
+        # A bit silly making it nondet
         return T.maximum(0.0, dist(U, V) - dist(U, V_) + d)
     
     def args(self, item):
