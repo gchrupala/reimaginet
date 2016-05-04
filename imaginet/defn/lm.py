@@ -30,7 +30,8 @@ class LM(imaginet.task.Task):
     def __init__(self, config):
         autoassign(locals())
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.Decode = Decoder(config['size_vocab'], config['size_embed'], config['size'], config['depth'])
+        self.Decode = Decoder(config['size_vocab'],
+                              config['size_embed'], config['size'], config['depth'])
         self.ToTxt  = Dense(config['size'], config['size_vocab']) 
         self.inputs = [T.imatrix()]
         self.target = T.imatrix()
