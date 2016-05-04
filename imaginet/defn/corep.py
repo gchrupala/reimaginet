@@ -41,7 +41,8 @@ class EncoderTask(task.Task):
 
 class Corep(task.Bundle):
     
-    def __init__(self, data_c, data_w, size_embed_c, size_embed_w, size, depth_c, depth_w, size_target):
+    def __init__(self, data_c, data_w, size_embed_c, size_embed_w,
+                 size, depth_c, depth_w, size_target):
         autoassign(locals())
         self.updater  = util.Adam()
         self.Encoder_c = Encoder(data_c.mapper.size(), size_embed_c, size, depth=depth_c)
