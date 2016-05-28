@@ -43,7 +43,7 @@ def texttophonemes(text):
     # strip of newline characters etc    
     espeakout = espeakout.strip()
     phonemelist = clean_phonemes(espeakout)  
-    return(phonemelist)
+    return phonemelist
     
 ##############################################################################
 
