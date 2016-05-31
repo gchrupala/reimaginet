@@ -34,7 +34,7 @@ def reps(model, data):
             vocab.add(x[1])
     words = [ w for w in vocab]
     ipas  = [ espeak(w) for w in vocab ]
-    reps = imaginet.task.pile(model, ipas)
+    reps = [ imaginet.task.pile(model, [ipa])[0] for ipa in ipas ]
     for i in range(0,len(words)):
         R[words[i]] = reps[i][-1,:,:]
     return R
