@@ -76,7 +76,8 @@ def evaluate(dataset='coco',
              model_path='model.zip',
              batch_size=128,
              task=visual.Visual,
-             tokenize=phonemes
+             tokenize=phonemes,
+             split='val'
             ):
     model = imaginet.task.load(path=model_path)
     task = model.task
@@ -84,10 +85,10 @@ def evaluate(dataset='coco',
     batcher = model.batcher
     mapper = batcher.mapper
     prov   = dp.getDataProvider(dataset, root=datapath)
-    sents_tok =  [ tokenize(sent) for sent in prov.iterSentences(split='val') ]
+    sents_tok =  [ tokenize(sent) for sent in prov.iterSentences(split=split) ]
     predictions = visual.predict_img(model, sents_tok, batch_size=batch_size)
-    sents  = list(prov.iterSentences(split='val'))
-    images = list(prov.iterImages(split='val'))
+    sents  = list(prov.iterSentences(split=split))
+    images = list(prov.iterImages(split=split))
     img_fs = list(scaler.transform([ image['feat'] for image in images ]))
     correct_img = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
                                   for j in range(len(images)) ]
