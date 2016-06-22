@@ -9,21 +9,31 @@ import StringIO
 import scipy.io.wavfile as wav
 import numpy
 import features
-
+import time
+from urllib2 import HTTPError
 
 def speak(words):
     f = StringIO.StringIO()
     gTTS(text=words, lang='en-us').write_to_fp(f)
     return f.getvalue()
 
+def tryspeak(words,i):
+    try:
+        return speak(words)
+    except:
+        print "sleeping {} seconds".format(60*i)
+        time.sleep(60*i)
+        return tryspeak(words,i*2)
+        
 def tts(dataset='flickr8k'):
-    data = json.load(open('/home/gchrupala/repos/reimaginet/data/{}/dataset.json'.format(dataset))
+    data = json.load(open('/home/gchrupala/repos/reimaginet/data/{}/dataset.json'.format(dataset)))
 
     with gzip.open("/home/gchrupala/repos/reimaginet/data/{}/dataset.mp3.jsonl.gz".format(dataset),"w") as f:
         for img in data['images']:
             for s in img['sentences']:
-                ipa = speak(s['raw'])
-                f.write("{}\n".format(json.dumps({'sentid':s['sentid'], 'speech':base64.b64encode(ipa)})))
+                    audio = tryspeak(s['raw'],1)
+                    f.write("{}\n".format(json.dumps({'sentid':s['sentid'], 'speech':base64.b64encode(audio)})))
+
 
 
 def decodemp3(s):
