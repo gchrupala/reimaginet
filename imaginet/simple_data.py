@@ -31,6 +31,15 @@ class NoScaler():
         return x
     def inverse_transform(self, x):
         return x
+
+def vector_padder(vecs):
+        """Pads each vector in vecs with zeros at the beginning. Returns 3D tensor with dimensions:
+           (BATCH_SIZE, SAMPLE_LENGTH, NUMBER_FEATURES).
+        """
+           
+        max_len = max(map(len, vecs))
+        return numpy.array([ numpy.vstack([numpy.zeros((max_len-len(vec),vec.shape[1])) , vec]) 
+                            for vec in vecs ], dtype='float32')
     
 class Batcher(object):
 
@@ -54,7 +63,8 @@ class Batcher(object):
     def padder(self, sents):
         return numpy.array(self.pad([[self.BEG]+sent+[self.END] for sent in sents]), dtype='int32')
 
-    def batch(self, item):
+    
+    def batch(self, gr):
         """Prepare minibatch. 
         
         Returns:
@@ -63,13 +73,18 @@ class Batcher(object):
         - output string at t-1
         - target string
         """
-        mb_inp = self.padder([s for s,_,_ in item])
-        mb_target_t = self.padder([r for _,r,_ in item])
+        mb_inp = self.padder([x['tokens_in'] for x in gr])
+        mb_target_t = self.padder([x['tokens_out'] for x in gr])
         inp = mb_inp[:,1:]
         target_t = mb_target_t[:,1:]
         target_prev_t = mb_target_t[:,0:-1]
-        target_v = numpy.array([ t for _,_,t in item ], dtype='float32')
-        return (inp, target_v, target_prev_t, target_t)
+        target_v = numpy.array([ x['img'] for x in gr ], dtype='float32')
+        mfcc = vector_padder([ x['mfcc'] for x in gr ])
+        return { 'input': inp, 
+                 'target_v':target_v, 
+                 'target_prev_t':target_prev_t, 
+                 'target_t':target_t,
+                 'mfcc': mfcc }
 
     
 class SimpleData(object):
@@ -81,20 +96,20 @@ class SimpleData(object):
         self.scaler = StandardScaler() if scale else NoScaler()
 
         # TRAINING
-        sents_in, sents_out, imgs = zip(*self.shuffled(arrange(provider.iterImages(split='train'), 
+        parts = insideout(self.shuffled(arrange(provider.iterImages(split='train'), 
                                                                tokenize=self.tokenize, 
                                                                limit=limit)))
-        sents_in = self.mapper.fit_transform(sents_in)
-        sents_out = self.mapper.transform(sents_out)
-        imgs = self.scaler.fit_transform(imgs)
-        self.data['train'] = zip(sents_in, sents_out, imgs)
+        parts['tokens_in'] = self.mapper.fit_transform(parts['tokens_in'])
+        parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
+        parts['img'] = self.scaler.fit_transform(parts['img'])
+        self.data['train'] = outsidein(parts)
 
         # VALIDATION
-        sents_in, sents_out, imgs = zip(*self.shuffled(arrange(provider.iterImages(split='val'), tokenize=self.tokenize)))
-        sents_in = self.mapper.transform(sents_in)
-        sents_out = self.mapper.transform(sents_out)
-        imgs = self.scaler.transform(imgs)
-        self.data['valid'] = zip(sents_in, sents_out, imgs)
+        parts = insideout(self.shuffled(arrange(provider.iterImages(split='val'), tokenize=self.tokenize)))
+        parts['tokens_in'] = self.mapper.transform(parts['tokens_in'])
+        parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
+        parts['img'] = self.scaler.transform(parts['img'])
+        self.data['valid'] = outsidein(parts)
         self.batcher = Batcher(self.mapper, pad_end=False)
         
     def shuffled(self, xs):
@@ -105,18 +120,20 @@ class SimpleData(object):
             random.shuffle(zs)
             return zs
         
+ 
     def iter_train_batches(self):
         for bunch in util.grouper(self.data['train'], self.batch_size*20):
-            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
+            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x['tokens_in']) for x in bunch]) ]
             for item in util.grouper(bunch_sort, self.batch_size):
                 yield self.batcher.batch(item)
         
     def iter_valid_batches(self):
         for bunch in util.grouper(self.data['valid'], self.batch_size*20):
-            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x) for x,_,_ in bunch]) ]
+            bunch_sort = [ bunch[i] for i in numpy.argsort([len(x['tokens_in']) for x in bunch]) ]
             for item in util.grouper(bunch_sort, self.batch_size):
                 yield self.batcher.batch(item)
 
+                
     def dump(self, model_path):
         """Write scaler and batcher to disc."""
         pickle.dump(self.scaler, gzip.open(os.path.join(model_path, 'scaler.pkl.gz'), 'w'),
@@ -130,6 +147,28 @@ def arrange(data, tokenize=words, limit=None):
             break
         for sent in image['sentences']:
             toks = tokenize(sent)
-            yield (toks, toks, image['feat'])
+            yield {'tokens_in':  toks, 
+                   'tokens_out': toks, 
+                   'mfcc':       sent.get('mfcc'),
+                   'img':        image['feat']}
+                   
             
-            
+def insideout(ds):
+    """Transform a list of dictionaries to a dictionary of lists."""
+    ds  = list(ds)
+    result = dict([(k, []) for k in ds[0].keys()])
+    for d in ds:
+        for k,v in d.items():
+            result[k].append(v)
+    return result
+
+def outsidein(d):
+    """Transform a dictionary of lists to a list of dictionaries."""
+    ds = []
+    keys = d.keys()
+    for key in keys:
+        d[key] = list(d[key])
+    for i in  range(len(d.values()[0])):
+        ds.append(dict([(k, d[k][i]) for k in keys]))
+    return ds
+

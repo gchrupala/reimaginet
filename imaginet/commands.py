@@ -32,6 +32,7 @@ def train(dataset='coco',
           shuffle=True,
           size_embed=128,
           size_hidden=512,
+          size_vocab=None,
           depth=2,
           activation='clipped_rectify',
           validate_period=100,
@@ -45,7 +46,7 @@ def train(dataset='coco',
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
-                  size_target=4096, max_norm=max_norm, lr=lr, residual=residual, margin=margin,
+                  size_target=4096, max_norm=max_norm, lr=lr, size_vocab=size_vocab, residual=residual, margin=margin,
                   activation=activation)
     model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), config, task)

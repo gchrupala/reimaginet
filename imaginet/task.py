@@ -99,7 +99,10 @@ class GenericBundle(Bundle):
         self.data = data
         self.batcher = data['batcher']
         self.scaler = data['scaler']
-        self.config['size_vocab'] = self.data['batcher'].mapper.size()
+        if config.get('size_vocab') is None:
+            self.config['size_vocab'] = self.data['batcher'].mapper.size()
+        else:
+            self.config['size_vocab'] = config['size_vocab']
         self.task = task(config)
         if weights is not None:
             assert len(self.task.params())==len(weights)

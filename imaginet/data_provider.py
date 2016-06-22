@@ -10,6 +10,7 @@ from collections import defaultdict
 import itertools
 import gzip
 import sys
+import numpy
 
 class BasicDataProvider:
   def __init__(self, dataset, root='.', extra_train=False):
@@ -22,6 +23,7 @@ class BasicDataProvider:
     # load the dataset into memory
     dataset_path = os.path.join(self.dataset_root, 'dataset.json')
     ipa_path     = os.path.join(self.dataset_root, 'dataset.ipa.jsonl.gz')
+    mfcc_path    = os.path.join(self.dataset_root, 'dataset.mfcc.npy')
     self.dataset = json.load(open(dataset_path, 'r'))
 
     # load ipa
@@ -36,7 +38,15 @@ class BasicDataProvider:
           sentence['ipa'] = IPA[sentence['sentid']]
     except IOError:
       sys.stderr.write("Could not read file {}: IPA transcription not available\n".format(ipa_path))
-      
+    
+    try:
+        MFCC = numpy.load(mfcc_path)
+        for image in self.dataset['images']:
+            for sentence in image['sentences']:
+                sentence['mfcc'] = MFCC[sentence['sentid']]
+    except IOError:
+        sys.stderr.write("Could not read file {}: MFCC features not available\n".format(mfcc_path))
+        
     # load the image features into memory
     features_path = os.path.join(self.dataset_root, 'vgg_feats.mat')
     

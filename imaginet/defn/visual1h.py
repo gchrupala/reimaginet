@@ -69,8 +69,7 @@ class Visual(task.Task):
         return T.maximum(0.0, dist(U, V) - dist(U, V_) + d)
     
     def args(self, item):
-        inp, target_v, out_prev, target_t = item
-        return (inp, target_v)
+        return (item['input'], item['target_v'])
 
     def _make_representation(self):
         with context.context(training=False):

@@ -20,10 +20,14 @@ class Encoder(Layer):
     def __init__(self, size_vocab, size_embed, size, depth,
                  residual=False, activation=clipped_rectify):
         autoassign(locals())
-
-        self.Embed = Embedding(self.size_vocab, self.size_embed)
-        self.GRU = StackedGRUH0(self.size_embed, self.size, self.depth,
-                                   activation=self.activation, residual=self.residual)
+        if self.size_embed == 'onehot':
+            self.Embed = OneHot(self.size_vocab)
+            self.GRU = StackedGRUH0(self.size_vocab, self.size, self.depth,
+                                       activation=self.activation, residual=self.residual)
+        else:
+            self.Embed = Embedding(self.size_vocab, self.size_embed)            
+            self.GRU = StackedGRUH0(self.size_embed, self.size, self.depth,
+                                       activation=self.activation, residual=self.residual)
 
     def params(self):
         return params(self.Embed, self.GRU)
@@ -69,8 +73,7 @@ class Visual(task.Task):
         return T.maximum(0.0, dist(U, V) - dist(U, V_) + d)
     
     def args(self, item):
-        inp, target_v, out_prev, target_t = item
-        return (inp, target_v)
+        return (item['input'], item['target_v'])
 
     def _make_representation(self):
         with context.context(training=False):
