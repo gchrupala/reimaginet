@@ -32,6 +32,22 @@ class NoScaler():
     def inverse_transform(self, x):
         return x
 
+class InputScaler():
+
+    def __init__(self):
+        self.scaler = StandardScaler()
+        
+    def fit_transform(self, data):
+        flat = numpy.vstack(data)
+        self.scaler.fit(flat)
+        return [ self.scaler.transform(X) for X in data ]
+    
+    def transform(self, data):
+        return [ self.scaler.transform(X) for X in data ]
+    
+    def inverse_transform(self, data):
+        return [ self.scaler.inverse_transform(X) for X in data ]
+    
 def vector_padder(vecs):
         """Pads each vector in vecs with zeros at the beginning. Returns 3D tensor with dimensions:
            (BATCH_SIZE, SAMPLE_LENGTH, NUMBER_FEATURES).
@@ -89,11 +105,12 @@ class Batcher(object):
     
 class SimpleData(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, tokenize=words, min_df=10, scale=True, batch_size=64, shuffle=False, limit=None):
+    def __init__(self, provider, tokenize=words, min_df=10, scale=True, scale_input=False, batch_size=64, shuffle=False, limit=None):
         autoassign(locals())
         self.data = {}
         self.mapper = util.IdMapper(min_df=self.min_df)
         self.scaler = StandardScaler() if scale else NoScaler()
+        self.mfcc_scaler = InputScaler() if scale_input else NoScaler()
 
         # TRAINING
         parts = insideout(self.shuffled(arrange(provider.iterImages(split='train'), 
@@ -102,6 +119,7 @@ class SimpleData(object):
         parts['tokens_in'] = self.mapper.fit_transform(parts['tokens_in'])
         parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
         parts['img'] = self.scaler.fit_transform(parts['img'])
+        parts['mfcc'] = self.mfcc_scaler.fit_transform(parts['mfcc'])
         self.data['train'] = outsidein(parts)
 
         # VALIDATION
@@ -109,6 +127,7 @@ class SimpleData(object):
         parts['tokens_in'] = self.mapper.transform(parts['tokens_in'])
         parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
         parts['img'] = self.scaler.transform(parts['img'])
+        parts['mfcc'] = self.mfcc_scaler.transform(parts['mfcc'])
         self.data['valid'] = outsidein(parts)
         self.batcher = Batcher(self.mapper, pad_end=False)
         
