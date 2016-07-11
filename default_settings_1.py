@@ -5,7 +5,7 @@ dataset = 'coco'
 epochs = 10
 
 cmd_train( dataset=dataset,
-           datapath='/home/gchrupala/repos/neuraltalk/',
+           datapath='.',
            model_path='.',
            epochs=epochs, depth=1, alpha=0.1, max_norm=5.0,
            cost_visual=CosineDistance,

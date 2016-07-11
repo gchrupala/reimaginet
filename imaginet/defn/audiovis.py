@@ -68,7 +68,7 @@ class Visual(task.Task):
         return T.maximum(0.0, dist(U, V) - dist(U, V_) + d)
     
     def args(self, item):
-        return (item['mfcc'], item['target_v'])
+        return (item['audio'], item['target_v'])
 
     def _make_representation(self):
         with context.context(training=False):

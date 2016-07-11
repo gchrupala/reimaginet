@@ -13,7 +13,7 @@ import sys
 import numpy
 
 class BasicDataProvider:
-  def __init__(self, dataset, root='.', extra_train=False):
+  def __init__(self, dataset, root='.', extra_train=False, audio_kind='fbank'):
     
     self.root = root
     # !assumptions on folder structure
@@ -23,7 +23,7 @@ class BasicDataProvider:
     # load the dataset into memory
     dataset_path = os.path.join(self.dataset_root, 'dataset.json')
     ipa_path     = os.path.join(self.dataset_root, 'dataset.ipa.jsonl.gz')
-    mfcc_path    = os.path.join(self.dataset_root, 'dataset.mfcc.npy')
+    audio_path    = os.path.join(self.dataset_root, 'dataset.{}.npy'.format(audio_kind))
     self.dataset = json.load(open(dataset_path, 'r'))
 
     # load ipa
@@ -40,12 +40,12 @@ class BasicDataProvider:
       sys.stderr.write("Could not read file {}: IPA transcription not available\n".format(ipa_path))
     
     try:
-        MFCC = numpy.load(mfcc_path)
+        AUDIO = numpy.load(audio_path)
         for image in self.dataset['images']:
             for sentence in image['sentences']:
-                sentence['mfcc'] = MFCC[sentence['sentid']]
+                sentence['audio'] = numpy.log(numpy.exp(1+AUDIO[sentence['sentid']]))
     except IOError:
-        sys.stderr.write("Could not read file {}: MFCC features not available\n".format(mfcc_path))
+        sys.stderr.write("Could not read file {}: audio features not available\n".format(audio_path))
         
     # load the image features into memory
     features_path = os.path.join(self.dataset_root, 'vgg_feats.mat')
@@ -141,20 +141,20 @@ class BasicDataProvider:
     for i in ix:
       yield self._getImage(imglist[i])
 
-def getDataProvider(dataset, root='.', extra_train=False):
+def getDataProvider(dataset, root='.', extra_train=False, audio_kind='fbank'):
   """ we could intercept a special dataset and return different data providers """
   assert dataset in ['flickr8k', 'flickr30k', 'coco', 'coco+flickr30k'], 'dataset %s unknown' % (dataset, )
   if dataset == 'coco+flickr30k':
-    return CombinedDataProvider(datasets=['coco', 'flickr30k'], root=root, extra_train=extra_train)
+    return CombinedDataProvider(datasets=['coco', 'flickr30k'], root=root, extra_train=extra_train, audio_kind=audio_kind)
   else:
-    return BasicDataProvider(dataset, root, extra_train=extra_train)
+    return BasicDataProvider(dataset, root, extra_train=extra_train, audio_kind=audio_kind)
 
 class CombinedDataProvider(object):
 
-  def __init__(self, datasets, root='.', extra_train=False):
+  def __init__(self, datasets, root='.', extra_train=False, audio_kind='fbank'):
     self.datasets = datasets
     self.root = root
-    self.providers = [ BasicDataProvider(dataset, root=self.root, extra_train=extra_train)
+    self.providers = [ BasicDataProvider(dataset, root=self.root, extra_train=extra_train, audio_kind=audio_kind)
                        for dataset in self.datasets ]
 
   def getSplitSize(self, split, ofwhat='sentences'):

@@ -95,12 +95,12 @@ class Batcher(object):
         target_t = mb_target_t[:,1:]
         target_prev_t = mb_target_t[:,0:-1]
         target_v = numpy.array([ x['img'] for x in gr ], dtype='float32')
-        mfcc = vector_padder([ x['mfcc'] for x in gr ])
+        audio = vector_padder([ x['audio'] for x in gr ])
         return { 'input': inp, 
                  'target_v':target_v, 
                  'target_prev_t':target_prev_t, 
                  'target_t':target_t,
-                 'mfcc': mfcc }
+                 'audio': audio }
 
     
 class SimpleData(object):
@@ -110,7 +110,7 @@ class SimpleData(object):
         self.data = {}
         self.mapper = util.IdMapper(min_df=self.min_df)
         self.scaler = StandardScaler() if scale else NoScaler()
-        self.mfcc_scaler = InputScaler() if scale_input else NoScaler()
+        self.audio_scaler = InputScaler() if scale_input else NoScaler()
 
         # TRAINING
         parts = insideout(self.shuffled(arrange(provider.iterImages(split='train'), 
@@ -119,7 +119,7 @@ class SimpleData(object):
         parts['tokens_in'] = self.mapper.fit_transform(parts['tokens_in'])
         parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
         parts['img'] = self.scaler.fit_transform(parts['img'])
-        parts['mfcc'] = self.mfcc_scaler.fit_transform(parts['mfcc'])
+        parts['audio'] = self.audio_scaler.fit_transform(parts['audio'])
         self.data['train'] = outsidein(parts)
 
         # VALIDATION
@@ -127,7 +127,7 @@ class SimpleData(object):
         parts['tokens_in'] = self.mapper.transform(parts['tokens_in'])
         parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
         parts['img'] = self.scaler.transform(parts['img'])
-        parts['mfcc'] = self.mfcc_scaler.transform(parts['mfcc'])
+        parts['audio'] = self.audio_scaler.transform(parts['audio'])
         self.data['valid'] = outsidein(parts)
         self.batcher = Batcher(self.mapper, pad_end=False)
         
@@ -168,7 +168,7 @@ def arrange(data, tokenize=words, limit=None):
             toks = tokenize(sent)
             yield {'tokens_in':  toks, 
                    'tokens_out': toks, 
-                   'mfcc':       sent.get('mfcc'),
+                   'audio':       sent.get('audio'),
                    'img':        image['feat']}
                    
             
