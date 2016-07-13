@@ -11,6 +11,7 @@ import numpy
 import features
 import time
 from urllib2 import HTTPError
+import funktional.util as util
 
 def speak(words):
     f = StringIO.StringIO()
@@ -60,15 +61,18 @@ def extract_fbank(sound):
     fbank_feat = features.logfbank(sig,rate)
     return fbank_feat
 
-def featurefile(dataset='flickr8k'):
-    result_mfcc = []
-    result_fbank = []
-    for line in gzip.open("/home/gchrupala/repos/reimaginet/data/{}/dataset.mp3.jsonl.gz".format(dataset)):
-        sent = json.loads(line)
-        sound = decodemp3(base64.b64decode(sent['speech']))
-        result_mfcc.append(extract_mfcc(sound))
-#        result_fbank.append(extract_fbank(sound))
-#        if len(result_mfcc) > 200:
-#            break
-    numpy.save("/home/gchrupala/repos/reimaginet/data/{}/dataset.mfcc.npy".format(dataset), result_mfcc)
-#    numpy.save("/home/gchrupala/repos/reimaginet/data/flickr8k/speech-fbank.npy", result_fbank)
+def featurefile(dataset='flickr8k', chunksize=1000, kind='fbank'):
+    if kind == 'mfcc':
+        extract = extract_mfcc
+    elif kind == 'fbank':
+        extract = extract_fbank
+    else:
+        raise "Invalid kind"
+    for i,chunk in enumerate(util.grouper(gzip.open("/home/gchrupala/repos/reimaginet/data/{}/dataset.mp3.jsonl.gz".format(dataset)),chunksize)):
+        result = []
+        for line in chunk:
+            sent = json.loads(line)
+            sound = decodemp3(base64.b64decode(sent['speech']))
+            result.append(extract(sound))
+        numpy.save("/home/gchrupala/repos/reimaginet/data/{}/dataset.{}.{}.npy".format(dataset,kind,i), result)
+
