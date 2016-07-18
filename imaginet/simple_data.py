@@ -105,7 +105,7 @@ class Batcher(object):
     
 class SimpleData(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, tokenize=words, min_df=10, scale=True, scale_input=False, batch_size=64, shuffle=False, limit=None):
+    def __init__(self, provider, tokenize=words, min_df=10, scale=True, scale_input=False, batch_size=64, shuffle=False, limit=None, curriculum=False):
         autoassign(locals())
         self.data = {}
         self.mapper = util.IdMapper(min_df=self.min_df)
@@ -141,7 +141,12 @@ class SimpleData(object):
         
  
     def iter_train_batches(self):
-        for bunch in util.grouper(self.data['train'], self.batch_size*20):
+        # sort data by length
+        if self.curriculum:
+            data = [self.data['train'][i] for i in numpy.argsort([len(x['tokens_in']) for x in self.data['train']])]
+        else:
+            data = self.data['train']
+        for bunch in util.grouper(data, self.batch_size*20):
             bunch_sort = [ bunch[i] for i in numpy.argsort([len(x['tokens_in']) for x in bunch]) ]
             for item in util.grouper(bunch_sort, self.batch_size):
                 yield self.batcher.batch(item)
