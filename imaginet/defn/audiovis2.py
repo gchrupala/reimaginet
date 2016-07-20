@@ -1,5 +1,6 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, Convolution1D, \
-                             Embedding, OneHot,  clipped_rectify, clipped_elu, tanh, CosineDistance,\
+                             Embedding, OneHot,  clipped_rectify, linear, clipped_elu, \
+                             tanh, CosineDistance, \
                              last, softmax3d, params
 import funktional.context as context        
 from funktional.layer import params
@@ -19,10 +20,11 @@ from imaginet.simple_data import vector_padder
 class Encoder(Layer):
 
     def __init__(self, size_vocab, _size_embed, size, depth,             # TODODODO remove size_embed from this
-                residual=False, activation=clipped_rectify,
+                 residual=False, activation=clipped_rectify, conv_activation=linear,
                 filter_length=6, filter_size=1024, stride=3): # FIXME use a more reasonable default
         autoassign(locals())
-        self.Conv = Convolution1D(self.size_vocab, self.filter_length, self.filter_size, stride=self.stride)
+        self.Conv = Convolution1D(self.size_vocab, self.filter_length, self.filter_size,
+                                  stride=self.stride, activation=self.conv_activation)
         self.GRU = StackedGRUH0(self.filter_size, self.size, self.depth,
                                    activation=self.activation, residual=self.residual)
 
