@@ -95,7 +95,7 @@ class Batcher(object):
         target_t = mb_target_t[:,1:]
         target_prev_t = mb_target_t[:,0:-1]
         target_v = numpy.array([ x['img'] for x in gr ], dtype='float32')
-        audio = vector_padder([ x['audio'] for x in gr ])
+        audio = vector_padder([ x['audio'] for x in gr ]) if x['audio']  is not None else None
         return { 'input': inp, 
                  'target_v':target_v, 
                  'target_prev_t':target_prev_t, 
