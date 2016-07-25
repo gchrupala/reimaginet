@@ -8,6 +8,7 @@ class Provider:
   def __init__(self, dataset, root='.', audio_kind='mfcc', extra_train=True):
     self.root = root
     self.dataset = dataset
+    self.audio_kind = audio_kind
     self.img = {}
     self.txt = {}
     self.img['train'] = numpy.load(open("{}/data/{}/vendrov/data/coco/images/10crop/train.npy".format(self.root, self.dataset)))
@@ -18,7 +19,7 @@ class Provider:
     self.txt['val'] = [ line.split() for line in open("{}/data/{}/vendrov/data/coco/val.txt".format(self.root, self.dataset)) ]
     self.txt['test'] = [ line.split() for line in open("{}/data/{}/vendrov/data/coco/test.txt".format(self.root, self.dataset)) ]
   
-    audio_path = "{}/data/{}/dataset.mfcc.npy".format(self.root, self.dataset)
+    audio_path = "{}/data/{}/dataset.{}.npy".format(self.root, self.dataset, self.audio_kind)
     try:
       
         words = json.load(open("{}/data/{}/dataset.words.json".format(self.root, self.dataset)))
@@ -44,7 +45,10 @@ class Provider:
         sent['tokens'] = self.txt[split][i*5+j]
         sent['raw'] = ' '.join(sent['tokens'])
         sent['imgid'] = i
-        sent['audio'] = numpy.log(numpy.exp(1+self.AUDIO[self.w2a[' '.join(sent['tokens'])]]))
+        if self.audio_kind is None:
+            sent['audio'] = None
+        else:
+            sent['audio'] = numpy.log(numpy.exp(1+self.AUDIO[self.w2a[' '.join(sent['tokens'])]]))
         img['sentences'].append(sent)
       yield img
 
