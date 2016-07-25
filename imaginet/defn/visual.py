@@ -14,6 +14,7 @@ import StringIO
 import json
 import cPickle as pickle
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.tensor.extra_ops import fill_diagonal
 
 class Encoder(Layer):
 
@@ -63,8 +64,25 @@ class Visual(task.Task):
     def cost(self, target, prediction):
         if self.config['margin']:
             return self.Margin(target, prediction, dist=CosineDistance, d=1)
+        elif self.config['contrastive']:
+            return self.contrastive(target, prediction, margin=0.2)
         else:
             return CosineDistance(target, prediction)
+            
+    def contrastive(self, i, s, margin=0.2): 
+        # i: (fixed) image embedding, 
+        # s: sentence embedding
+        errors = - util.cosine_matrix(i, s)
+        diagonal = errors.diagonal()
+        # compare every diagonal score to scores in its column (all contrastive images for each sentence)
+        cost_s = T.maximum(0, margin - errors + diagonal)  
+        # all contrastive sentences for each image
+        cost_i = T.maximum(0, margin - errors + diagonal.reshape((-1, 1)))  
+        cost_tot = cost_s + cost_i
+        # clear diagonals
+        cost_tot = fill_diagonal(cost_tot, 0)
+
+        return cost_tot.mean()
     
     def Margin(self, U, V, dist=CosineDistance, d=1.0):
         V_ = (V[self.srng.permutation(n=T.shape(V)[0],
