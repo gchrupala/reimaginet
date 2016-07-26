@@ -105,30 +105,35 @@ class Batcher(object):
     
 class SimpleData(object):
     """Training / validation data prepared to feed to the model."""
-    def __init__(self, provider, tokenize=words, min_df=10, scale=True, scale_input=False, batch_size=64, shuffle=False, limit=None, curriculum=False):
+    def __init__(self, provider, tokenize=words, min_df=10, scale=True, scale_input=False, batch_size=64, shuffle=False, limit=None, curriculum=False, val_vocab=False):
         autoassign(locals())
         self.data = {}
         self.mapper = util.IdMapper(min_df=self.min_df)
         self.scaler = StandardScaler() if scale else NoScaler()
         self.audio_scaler = InputScaler() if scale_input else NoScaler()
 
-        # TRAINING
         parts = insideout(self.shuffled(arrange(provider.iterImages(split='train'), 
                                                                tokenize=self.tokenize, 
                                                                limit=limit)))
-        parts['tokens_in'] = self.mapper.fit_transform(parts['tokens_in'])
+        parts_val = insideout(self.shuffled(arrange(provider.iterImages(split='val'), tokenize=self.tokenize)))
+        # TRAINING
+        if self.val_vocab:
+            _ = list(self.mapper.fit_transform(parts['tokens_in'] + parts_val['tokens_in']))
+            parts['tokens_in'] = self.mapper.transform(parts['tokens_in']) # FIXME UGLY HACK
+        else:
+            parts['tokens_in'] = self.mapper.fit_transform(parts['tokens_in'])
+            
         parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
         parts['img'] = self.scaler.fit_transform(parts['img'])
         parts['audio'] = self.audio_scaler.fit_transform(parts['audio'])
         self.data['train'] = outsidein(parts)
 
         # VALIDATION
-        parts = insideout(self.shuffled(arrange(provider.iterImages(split='val'), tokenize=self.tokenize)))
-        parts['tokens_in'] = self.mapper.transform(parts['tokens_in'])
-        parts['tokens_out'] = self.mapper.transform(parts['tokens_out'])
-        parts['img'] = self.scaler.transform(parts['img'])
-        parts['audio'] = self.audio_scaler.transform(parts['audio'])
-        self.data['valid'] = outsidein(parts)
+        parts_val['tokens_in'] = self.mapper.transform(parts_val['tokens_in'])
+        parts_val['tokens_out'] = self.mapper.transform(parts_val['tokens_out'])
+        parts_val['img'] = self.scaler.transform(parts_val['img'])
+        parts_val['audio'] = self.audio_scaler.transform(parts_val['audio'])
+        self.data['valid'] = outsidein(parts_val)
         self.batcher = Batcher(self.mapper, pad_end=False)
         
     def shuffled(self, xs):
