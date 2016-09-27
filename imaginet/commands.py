@@ -21,7 +21,8 @@ def train(dataset='coco',
           model_path='.',
           task=visual.Visual,
           residual=False,
-          margin=False,
+          contrastive=False,
+          margin_size=1.0,
           tokenize=phonemes,
           max_norm=None,
           min_df=10,
@@ -46,8 +47,8 @@ def train(dataset='coco',
     data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
-                  size_target=4096, max_norm=max_norm, lr=lr, size_vocab=size_vocab, residual=residual, margin=margin,
-                  activation=activation)
+                  size_target=4096, max_norm=max_norm, lr=lr, size_vocab=size_vocab, residual=residual,
+                  activation=activation, contrastive=contrastive, margin_size=margin_size)
     model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), config, task)
     trainer(model, data, epochs, validate_period, model_path)

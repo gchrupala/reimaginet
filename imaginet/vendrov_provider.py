@@ -2,6 +2,7 @@ import os
 import numpy
 import json
 import sys
+import gzip 
 
 class Provider:
 
@@ -20,14 +21,20 @@ class Provider:
     self.txt['test'] = [ line.split() for line in open("{}/data/{}/vendrov/data/coco/test.txt".format(self.root, self.dataset)) ]
   
     audio_path = "{}/data/{}/dataset.{}.npy".format(self.root, self.dataset, self.audio_kind)
+    ipa_path   = "{}/data/{}/dataset.ipa.jsonl.gz".format(self.root, self.dataset)
+    words = json.load(open("{}/data/{}/dataset.words.json".format(self.root, self.dataset)))
+    self.w2i = {}
+    for i in range(0, len(words)):
+        self.w2i[words[i]] = i
+    try:
+        self.IPA = [ json.loads(line)['phonemes'] for line in gzip.open(ipa_path) ]
+    except IOError as e:
+        sys.stderr.write("Could not read file {}: IPA transcription not available\n".format(audio_path))
+
     try:
       
-        words = json.load(open("{}/data/{}/dataset.words.json".format(self.root, self.dataset)))
         self.AUDIO = numpy.load(audio_path)
-        self.w2a = {}
-        for i in range(0, len(words)):
-            self.w2a[words[i]] = i 
-    except IOError:
+    except IOError as e:
         sys.stderr.write("Could not read file {}: audio features not available\n".format(audio_path))
 
 
@@ -48,7 +55,9 @@ class Provider:
         if self.audio_kind is None:
             sent['audio'] = None
         else:
-            sent['audio'] = numpy.log(numpy.exp(1+self.AUDIO[self.w2a[' '.join(sent['tokens'])]]))
+            sent['audio'] = numpy.log(numpy.exp(1+self.AUDIO[self.w2i[' '.join(sent['tokens'])]]))
+        if len(self.IPA)>0:
+            sent['ipa'] = self.IPA[self.w2i[' '.join(sent['tokens'])]]
         img['sentences'].append(sent)
       yield img
 
@@ -58,5 +67,7 @@ class Provider:
         yield sent
 
         
+def getDataProvider(*args, **kwargs):
+	return Provider(*args, **kwargs)
       
     
