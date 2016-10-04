@@ -6,7 +6,7 @@ from funktional.layer import params
 import imaginet.task as task
 from funktional.util import autoassign
 import funktional.util as util
-from funktional.util import steeper_sigmoid, sigmoid, orthogonal, xavier
+from funktional.util import steeper_sigmoid, sigmoid, orthogonal, xavier, tanh
 import theano.tensor as T
 import theano
 import zipfile

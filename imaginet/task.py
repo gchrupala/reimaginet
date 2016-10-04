@@ -169,3 +169,18 @@ def pile(model, sents, batch_size=128):
                for r in model.task.pile(model.batcher.batch_inp(batch)) ]    
     return [ r[-l-1:,:,:] for (r,l) in zip(rs, lens) ]
     
+def encode_sentences(model, sents, batch_size=128):
+    """Project sents to the joint space using model.
+    
+    For each sentence returns a vector.
+    """
+    inputs = list(model.batcher.mapper.transform(sents))
+    return numpy.vstack([ model.task.predict(model.batcher.batch_inp(batch))
+                            for batch in util.grouper(inputs, batch_size) ])
+
+def encode_images(model, imgs, batch_size=128):
+    """Project imgs to the joint space using model.
+    """
+    return numpy.vstack([ model.task.encode_images(batch)
+                          for batch in util.grouper(imgs, batch_size) ])
+

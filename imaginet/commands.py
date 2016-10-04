@@ -34,6 +34,8 @@ def train(dataset='coco',
           size_embed=128,
           size_hidden=512,
           size_vocab=None,
+          val_vocab=False,
+          init_img='xavier',
           depth=2,
           activation='clipped_rectify',
           validate_period=100,
@@ -44,11 +46,12 @@ def train(dataset='coco',
         random.seed(seed)
         numpy.random.seed(seed)
     prov = dp.getDataProvider(dataset, root=datapath)
-    data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, 
+    data = SimpleData(prov, tokenize=tokenize, min_df=min_df, scale=scale, val_vocab=val_vocab,
                       batch_size=batch_size, shuffle=shuffle, limit=limit)
     config = dict(size_embed=size_embed, size=size_hidden, depth=depth,
                   size_target=4096, max_norm=max_norm, lr=lr, size_vocab=size_vocab, residual=residual,
-                  activation=activation, contrastive=contrastive, margin_size=margin_size)
+                  activation=activation, contrastive=contrastive, margin_size=margin_size,
+                   init_img=init_img)
     model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), config, task)
     trainer(model, data, epochs, validate_period, model_path)
