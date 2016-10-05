@@ -64,7 +64,7 @@ class Visual(task.Task):
     def cost(self, target, prediction):
         if self.config['margin']:
             return self.Margin(target, prediction, dist=CosineDistance, d=1)
-        elif self.config['contrastive']:
+        elif self.config.get('contrastive'):
             return self.contrastive(target, prediction, margin=0.2)
         else:
             return CosineDistance(target, prediction)
