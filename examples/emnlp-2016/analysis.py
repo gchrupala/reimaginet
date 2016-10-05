@@ -1,3 +1,4 @@
+# coding: utf-8
 import imaginet.task
 import imaginet.defn.lm as lm
 import imaginet.defn.visual1h 
@@ -9,13 +10,50 @@ from subprocess import check_output
 import numpy
 import scipy.stats
 import json
+import subprocess
 
 # Conversion to phonemes
+def clean_phonemes(espeakoutput):
+    '''
+    Takes espeak output as input
+    returns list of phonemes and boundaries
+    boundaries are indicated by an asterisk
+    '''
+    no_word_stress = espeakoutput.replace("ˈ", "")    
+    no_stress = no_word_stress.replace("ˌ", "")
+    boundaries = no_stress.replace(" ","_*_")
+    no_ii = boundaries.replace("iːː", "iː")
+    phonemes = no_ii.split("_")
+    
+    #remove 'empty' phonemes
+    while "" in phonemes:
+        phonemes.remove('')
+
+    return phonemes
+
+def espeak(text):
+    '''
+    Takes orthograpic sentence as input
+    returns list of phonemes and boundaries
+    boundaries are indicated by an asterisk 
+    '''
+    # remove punctuation and add quotes for espeak
+    chars = []
+    for c in text:
+        if c.isspace() or c.isalnum():
+            chars.append(c)
+    espeaktext = '"' + ''.join(chars) + '"'
+
+    espeakout = subprocess.check_output(['espeak', '-q', '--ipa=3', '-v', 'en', espeaktext])
+    # strip of newline characters etc    
+    espeakout = espeakout.strip()
+    phonemelist = clean_phonemes(espeakout)  
+    return phonemelist
 
 men_ipa = json.load(open("/home/gchrupala/reimaginet/data/men_ipa.json"))
 
-def espeak(words):
-    return men_ipa[words]
+#def espeak(words):
+#    return men_ipa[words]
 
 # Cosine distance from precomuted representation table
 def cos(R, word1, word2, layer=-1):
