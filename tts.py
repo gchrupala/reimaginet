@@ -38,10 +38,13 @@ def tts(dataset='flickr8k'):
 
 
 def decodemp3(s):
-    seg = pydub.AudioSegment.from_mp3(StringIO.StringIO(s))
+    seg = from_mp3(s)
     io = StringIO.StringIO()
     seg.export(io, format='wav')
     return io.getvalue()
+
+def from_mp3(s):
+    return pydub.AudioSegment.from_mp3(StringIO.StringIO(s))
 
 # def wavdata(dataset='flickr8k'):
 #     with gzip.open("/home/gchrupala/repos/reimaginet/data/flickr8k/dataset.wav.jsonl.gz","w") as out:
@@ -76,3 +79,9 @@ def featurefile(dataset='flickr8k', chunksize=1000, kind='fbank'):
             result.append(extract(sound))
         numpy.save("/home/gchrupala/repos/reimaginet/data/{}/dataset.{}.{}.npy".format(dataset,kind,i), result)
 
+def noisify(sound, noise):
+    loudness = random.uniform(0.0, 10.0)
+    start = random.randint(0, (noise.duration_seconds - sound.duration_seconds) * 1000)
+    speed = random.uniform(1.0, 1.3)
+    sound.overlay(noise[start:].speedup(playback_speed=speed) + loundness)
+    
