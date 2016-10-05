@@ -12,48 +12,48 @@ import scipy.stats
 import json
 import subprocess
 
-# Conversion to phonemes
-def clean_phonemes(espeakoutput):
-    '''
-    Takes espeak output as input
-    returns list of phonemes and boundaries
-    boundaries are indicated by an asterisk
-    '''
-    no_word_stress = espeakoutput.replace("ˈ", "")    
-    no_stress = no_word_stress.replace("ˌ", "")
-    boundaries = no_stress.replace(" ","_*_")
-    no_ii = boundaries.replace("iːː", "iː")
-    phonemes = no_ii.split("_")
+# # Conversion to phonemes
+# def clean_phonemes(espeakoutput):
+#     '''
+#     Takes espeak output as input
+#     returns list of phonemes and boundaries
+#     boundaries are indicated by an asterisk
+#     '''
+#     no_word_stress = espeakoutput.replace("ˈ", "")    
+#     no_stress = no_word_stress.replace("ˌ", "")
+#     boundaries = no_stress.replace(" ","_*_")
+#     no_ii = boundaries.replace("iːː", "iː")
+#     phonemes = no_ii.split("_")
     
-    #remove 'empty' phonemes
-    while "" in phonemes:
-        phonemes.remove('')
+#     #remove 'empty' phonemes
+#     while "" in phonemes:
+#         phonemes.remove('')
 
-    return phonemes
+#     return phonemes
 
-def espeak(text):
-    '''
-    Takes orthograpic sentence as input
-    returns list of phonemes and boundaries
-    boundaries are indicated by an asterisk 
-    '''
-    # remove punctuation and add quotes for espeak
-    chars = []
-    for c in text:
-        if c.isspace() or c.isalnum():
-            chars.append(c)
-    espeaktext = '"' + ''.join(chars) + '"'
+# def espeak(text):
+#     '''
+#     Takes orthograpic sentence as input
+#     returns list of phonemes and boundaries
+#     boundaries are indicated by an asterisk 
+#     '''
+#     # remove punctuation and add quotes for espeak
+#     chars = []
+#     for c in text:
+#         if c.isspace() or c.isalnum():
+#             chars.append(c)
+#     espeaktext = '"' + ''.join(chars) + '"'
 
-    espeakout = subprocess.check_output(['espeak', '-q', '--ipa=3', '-v', 'en', espeaktext])
-    # strip of newline characters etc    
-    espeakout = espeakout.strip()
-    phonemelist = clean_phonemes(espeakout)  
-    return phonemelist
+#     espeakout = subprocess.check_output(['espeak', '-q', '--ipa=3', '-v', 'en', espeaktext])
+#     # strip of newline characters etc    
+#     espeakout = espeakout.strip()
+#     phonemelist = clean_phonemes(espeakout)  
+#     return phonemelist
 
 men_ipa = json.load(open("/home/gchrupala/reimaginet/data/men_ipa.json"))
 
-#def espeak(words):
-#    return men_ipa[words]
+def espeak(words):
+    return men_ipa[words]
 
 # Cosine distance from precomuted representation table
 def cos(R, word1, word2, layer=-1):
@@ -130,18 +130,23 @@ distance = [ nlev(espeak(x[0]), espeak(x[1])) for x in MEN ]
 # Print correlations for MEN
 
 print "PHON"    
-   
-for layer in range(0,3):
-    system_m = [ cos(R_phon, x[0], x[1], layer=layer) for x in MEN ]
-    print "Layer", layer+1
-    print "MEN", scipy.stats.spearmanr(human_m, system_m)
-    print "DIS", scipy.stats.spearmanr(distance, system_m)
-print
+
+with open("cosines.json","w") as out:
+    for layer in range(0,3):
+        system_m = [ cos(R_phon, x[0], x[1], layer=layer) for x in MEN ]
+        out.write(json.dumps(dict(model='phon', layer=layer, sims=system_m)))
+        out.write("\n")
+        print "Layer", layer+1
+        print "MEN", scipy.stats.spearmanr(human_m, system_m)
+        print "DIS", scipy.stats.spearmanr(distance, system_m)
+    print
     
-print "WORD"
-for layer in range(0,1):
-    system_m = [ cos(R_word, x[0], x[1], layer=layer) for x in MEN ]
-    print "Layer", layer+1
-    print "MEN", scipy.stats.spearmanr(human_m, system_m)
-    print "DIS", scipy.stats.spearmanr(distance, system_m)
+    print "WORD"
+    for layer in range(0,1):
+        system_m = [ cos(R_word, x[0], x[1], layer=layer) for x in MEN ]
+        out.write(json.dumps(dict(model='word', layer=layer, sims=system_m)))
+        out.write("\n")
+        print "Layer", layer+1
+        print "MEN", scipy.stats.spearmanr(human_m, system_m)
+        print "DIS", scipy.stats.spearmanr(distance, system_m)
 
