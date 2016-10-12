@@ -11,10 +11,10 @@ In this repository we are trying new models and features.
 
 Reimaginet relies on [Theano](https://github.com/Theano/Theano) and [funktional](https://github.com/gchrupala/funktional). 
 
-Once you have these installed, you can install `reimaginet`. If you'll be making changes to the code it's best to install in the development mode, so all the changes are used by the Python interpreter:
+Once you have these installed, you can install `reimaginet`. 
+If you'll be making changes to the code it's best to install in the development mode, so all the changes are used by the Python interpreter. From the directory of the repo run the following command:
 
 ```
-> cd reimaginet
 > python setup.py develop --user
 ```
 
