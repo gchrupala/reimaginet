@@ -105,7 +105,7 @@ def encode_sentences(model, audios, batch_size=128):
 
 def layer_states(model, audios):
     """Pass audios through the model and for each audio return the state of each timestep and each layer."""
-    return [ model.task.pile([audio]) for audio in audios ]
+    return [ model.task.pile([audio])[0] for audio in audios ]
                                     
 
 def encode_images(model, imgs, batch_size=128):
