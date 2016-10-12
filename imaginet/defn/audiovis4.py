@@ -86,7 +86,7 @@ class Visual(task.Task):
 
     def _make_pile(self):
         with context.context(training=False):
-            rep = self.Encode.GRU.intermediate(*self.inputs)
+            rep = self.Encode.GRU.intermediate(self.Encode.Conv(*self.inputs))
         return theano.function(self.inputs, rep)
 
     def _make_encode_images(self):
@@ -96,12 +96,17 @@ class Visual(task.Task):
         return theano.function([images], rep)
 
 def encode_sentences(model, audios, batch_size=128):
-    """Project sents to the joint space using model.
+    """Project audios to the joint space using model.
     
-    For each sentence returns a vector.
+    For each audio returns a vector.
     """
     return numpy.vstack([ model.task.predict(vector_padder(batch))
                             for batch in util.grouper(audios, batch_size) ])
+
+def layer_states(model, audios):
+    """Pass audios through the model and for each audio return the state of each timestep and each layer."""
+    return [ model.task.pile([audio]) for audio in audios ]
+                                    
 
 def encode_images(model, imgs, batch_size=128):
     """Project imgs to the joint space using model.
