@@ -44,7 +44,7 @@ class BasicDataProvider:
         sentid = 0
         for image in self.dataset['images']:
             for sentence in image['sentences']:
-                sentence['audio'] = numpy.log(numpy.exp(1+AUDIO[sentid]))
+                sentence['audio'] = AUDIO[sentid]
                 sentid += 1
     except IOError:
         sys.stderr.write("Could not read file {}: audio features not available\n".format(audio_path))
