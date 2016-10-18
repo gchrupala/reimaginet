@@ -11,6 +11,6 @@ setup(name='imaginet',
       packages=['imaginet'],
       install_requires=[
           'Theano',
-          'funktional>=0.4'
+          'funktional>=0.5'
                     ],
       zip_safe=False)
