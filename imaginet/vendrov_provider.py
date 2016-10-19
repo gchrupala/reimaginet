@@ -55,9 +55,9 @@ class Provider:
         if self.audio_kind is None:
             sent['audio'] = None
         else:
-            sent['audio'] = self.AUDIO[self.w2i[' '.join(sent['tokens'])]]
+            sent['audio'] = self.AUDIO[self.w2i[sent['raw']]]
         if len(self.IPA)>0:
-            sent['ipa'] = self.IPA[self.w2i[' '.join(sent['tokens'])]]
+            sent['ipa'] = self.IPA[self.w2i[sent['raw']]]
         img['sentences'].append(sent)
       yield img
 
