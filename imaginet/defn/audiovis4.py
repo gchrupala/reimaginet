@@ -103,9 +103,12 @@ def encode_sentences(model, audios, batch_size=128):
     return numpy.vstack([ model.task.predict(vector_padder(batch))
                             for batch in util.grouper(audios, batch_size) ])
 
-def layer_states(model, audios):
+def layer_states(model, audios, batch_size=128):
     """Pass audios through the model and for each audio return the state of each timestep and each layer."""
-    return [ model.task.pile([audio])[0] for audio in audios ]
+                             
+    lens = map(len, audios)
+    rs = [ r for batch in util.grouper(audios, batch_size) for r in model.task.pile(vector_padder(batch)) ]
+    return [ r[-l-1:,:,:] for (r,l) in zip(rs, lens) ]
                                     
 
 def encode_images(model, imgs, batch_size=128):
