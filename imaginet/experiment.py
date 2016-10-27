@@ -40,7 +40,7 @@ def run_train(data, prov, model_config, run_config):
 
 
 
-def run_eval(prov, config):
+def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
     datapath='/home/gchrupala/repos/reimaginet'
 
     for epoch in range(1, 1+config['epochs']):
@@ -49,6 +49,7 @@ def run_eval(prov, config):
                           tokenize=config['tokenize'],
                           split=config['split'],
                           task=config['task'],
+                          encode_sentences=encode_sentences,
                           batch_size=config['batch_size'],
                           model_path='model.{}.zip'.format(epoch))
         json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
@@ -61,6 +62,7 @@ def evaluate(prov,
              model_path='model.zip',
              batch_size=128,
              task=vs.VectorSum,
+             encode_sentences=imaginet.task.encode_sentences,
              tokenize=words,
              split='val'
             ):
@@ -71,7 +73,7 @@ def evaluate(prov,
     mapper = batcher.mapper
     sents = list(prov.iterSentences(split=split))
     sents_tok =  [ tokenize(sent) for sent in sents ]
-    predictions = imaginet.task.encode_sentences(model, sents_tok, batch_size=batch_size)
+    predictions = encode_sentences(model, sents_tok, batch_size=batch_size)
     images = list(prov.iterImages(split=split))
     img_fs = imaginet.task.encode_images(model, [ img['feat'] for img in images ])
     #img_fs = list(scaler.transform([ image['feat'] for image in images ]))
