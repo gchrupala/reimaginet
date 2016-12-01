@@ -110,4 +110,16 @@ def noisify(sound, noise):
     noisy = sound.speedup(playback_speed=speed).overlay(noise[start:] + loudness)
     return noisy
 
+# Delta and acceleration
+
+def delta(v, N=2, offset=1):
+    d = numpy.zeros_like(v[:, offset:])
+    for t in range(0, d.shape[0]):
+        Z = 2 * sum(n**2 for n in range(1, N+1))
+        d[t,:] = sum(n * (v[min(t+n, 0), :offset]-v[max(t-n, d.shape[0]-1), :offset]) for n in range(1,N+1)) / Z
+    return d
+
+def acceleration(v, N=2, offset=1):
+    return delta(delta(v, N=2, offset=offset), N=2, offset=0)
+
     
