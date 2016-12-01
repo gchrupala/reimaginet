@@ -22,13 +22,13 @@ class Encoder(Layer):
     def __init__(self, size_vocab, _size_embed, size, depth,             # TODODODO remove size_embed from this
                  residual=False, fixed=False, activation=clipped_rectify,
                  gate_activation=steeper_sigmoid, init_in=orthogonal, init_recur=orthogonal, 
-                filter_length=6, filter_size=1024, stride=3): # FIXME use a more reasonable default
+                filter_length=6, filter_size=1024, stride=3, dropout_prob=0.0): # FIXME use a more reasonable default
         autoassign(locals())
         self.Conv = Convolution1D(self.size_vocab, self.filter_length, self.filter_size, stride=self.stride)
         self.GRU = StackedGRUH0(self.filter_size, self.size, self.depth,
                                 activation=self.activation, residual=self.residual,
                                 gate_activation=self.gate_activation,
-                                init_in=self.init_in, init_recur=self.init_recur)
+                                init_in=self.init_in, init_recur=self.init_recur, dropout_prob=self.dropout_prob)
     def params(self):
         return params(self.Conv, self.GRU)
     
@@ -52,7 +52,8 @@ class Visual(task.Task):
                               stride=config.get('stride', 3),
                               residual=config.get('residual',False),
                               init_in=eval(config.get('init_in', 'orthogonal')),
-                              init_recur=eval(config.get('init_recur', 'orthogonal')))
+                              init_recur=eval(config.get('init_recur', 'orthogonal')), 
+                              dropout_prob=config.get('dropout_prob', 0.0))
         self.Attn   = Attention(config['size'], size=config.get('size_attn', 512))
         self.ImgEncoder  = Dense(config['size_target'], config['size'])
         self.inputs = [T.ftensor3()]
