@@ -9,14 +9,31 @@ from imaginet.simple_data import words
 import random
 from collections import Counter
 import sys
-
-def run_train(data, prov, model_config, run_config):
+import funktional.layer as layer
+def run_train(data, prov, model_config, run_config, eval_config, runid=''):
     seed  = run_config.get('seed')
+    epoch_evals = []
     if  seed is not None:
         random.seed(seed)
         numpy.random.seed(seed)
     model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), model_config, run_config['task'])
+    print layer.param_count(model.params())
+    def epoch_eval():
+        task = model.task
+        scaler = model.scaler
+        batcher = model.batcher
+        mapper = batcher.mapper
+        sents = list(prov.iterSentences(split=eval_config['split']))
+        sents_tok =  [ eval_config['tokenize'](sent) for sent in sents ]
+        predictions = eval_config['encode_sentences'](model, sents_tok, batch_size=eval_config['batch_size'])
+        images = list(prov.iterImages(split=eval_config['split']))
+        img_fs = imaginet.task.encode_images(model, [ img['feat'] for img in images ])
+        #img_fs = list(scaler.transform([ image['feat'] for image in images ]))
+        correct_img = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
+                                      for j in range(len(images)) ]
+                                    for i in range(len(sents)) ] )
+        return ranking(img_fs, predictions, correct_img, ns=(1,5,10), exclude_self=False)
 
     def valid_loss():
         result = []
@@ -35,14 +52,18 @@ def run_train(data, prov, model_config, run_config):
                 if j % run_config['validate_period'] == 0:
                         print epoch, j, 0, "valid", "".join([str(numpy.mean(valid_loss()))])
                 sys.stdout.flush()
-        model.save(path='model.{0}.zip'.format(epoch))
-    model.save(path='model.zip')
+                
+        model.save(path='model.r{}.e{}.zip'.format(runid,epoch))
+        epoch_evals.append(epoch_eval())
+        json.dump(epoch_evals[-1], open('scores.{}.json'.format(epoch),'w'))       
+    model.save(path='model.r{}.zip'.format(runid))
+    return epoch_evals
 
 
 
 def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
     datapath='/home/gchrupala/repos/reimaginet'
-
+    results = []
     for epoch in range(1, 1+config['epochs']):
         scores = evaluate(prov,
                           datapath=datapath,
@@ -53,7 +74,10 @@ def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
                           batch_size=config['batch_size'],
                           model_path='model.{}.zip'.format(epoch))
         json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
+        results.append((numpy.mean(scores['recall'][10], epoch)))
         print epoch, numpy.mean(scores['recall'][5])
+    return results
+   
 
 
 
