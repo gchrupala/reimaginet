@@ -8,7 +8,7 @@ if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
     
 print "epoch r@1 R@5 r@10 rank"
-for i in range(1,21):
+for i in range(1,26):
     try:
         data = json.load(open("scores.{}.json".format(i)))
         print i, numpy.mean(data['recall']['1']), \
