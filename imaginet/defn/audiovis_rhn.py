@@ -104,10 +104,9 @@ def encode_sentences(model, audios, batch_size=128):
 def layer_states(model, audios, batch_size=128):
     """Pass audios through the model and for each audio return the state of each timestep and each layer."""
                              
-    lens = map(len, audios)
+    lens = (numpy.array(map(len, audios)) + model.config['filter_length']) // model.config['stride']
     rs = [ r for batch in util.grouper(audios, batch_size) for r in model.task.pile(vector_padder(batch)) ]
-    return [ r[-l-1:,:,:] for (r,l) in zip(rs, lens) ]
-                                    
+    return [ r[-l:,:,:] for (r,l) in zip(rs, lens) ]                                    
 
 def encode_images(model, imgs, batch_size=128):
     """Project imgs to the joint space using model.
