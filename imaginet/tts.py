@@ -59,7 +59,7 @@ def from_mp3(s):
 def extract_mfcc(sound):
     (rate,sig) = wav.read(StringIO.StringIO(sound))
     mfcc_feat = features.mfcc(sig,rate)
-    return mfcc_feat
+    return numpy.asarray(mfcc_feat, dtype='float32')
 
 def extract_fbank(sound):
     (rate,sig) = wav.read(StringIO.StringIO(sound))
@@ -116,10 +116,13 @@ def delta(v, N=2, offset=1):
     d = numpy.zeros_like(v[:, offset:])
     for t in range(0, d.shape[0]):
         Z = 2 * sum(n**2 for n in range(1, N+1))
-        d[t,:] = sum(n * (v[min(t+n, 0), :offset]-v[max(t-n, d.shape[0]-1), :offset]) for n in range(1,N+1)) / Z
+        d[t,:] = sum(n * (v[min(t+n, v.shape[0]-1), offset:]-v[max(t-n, 0), offset:]) for n in range(1,N+1)) / Z
     return d
 
-def acceleration(v, N=2, offset=1):
-    return delta(delta(v, N=2, offset=offset), N=2, offset=0)
+def add_accel(data):
+    return numpy.array( [ numpy.hstack([row, delta(row, N=2, offset=1), delta(delta(row, N=2, offset=1), offset=0)]) for row in data ])
 
-    
+def extract_mfcc_accel(sound):
+    return add_accel(extract_mfcc(sound))
+
+
