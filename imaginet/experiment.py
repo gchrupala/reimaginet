@@ -10,14 +10,23 @@ import random
 from collections import Counter
 import sys
 import funktional.layer as layer
-def run_train(data, prov, model_config, run_config, eval_config, runid=''):
+import os
+
+def run_train(data, prov, model_config, run_config, eval_config, runid='', resume=False):
     seed  = run_config.get('seed')
     epoch_evals = []
     if  seed is not None:
         random.seed(seed)
         numpy.random.seed(seed)
-    model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
+    if resume:
+        last_epoch, path = last_dump(runid)
+        print "Resuming from model {}".format(path)
+        model = imaginet.task.load(path)
+    else:
+        last_epoch = 0
+        model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), model_config, run_config['task'])
+                                             
     print layer.param_count(model.params())
     def epoch_eval():
         task = model.task
@@ -42,7 +51,7 @@ def run_train(data, prov, model_config, run_config, eval_config, runid=''):
         return result
 
     costs = Counter()
-    for epoch in range(1, run_config['epochs'] + 1):
+    for epoch in range(last_epoch+1, run_config['epochs'] + 1):
         random.shuffle(data.data['train'])
         for _j, item in enumerate(data.iter_train_batches()):
                 j = _j + 1
@@ -59,7 +68,11 @@ def run_train(data, prov, model_config, run_config, eval_config, runid=''):
     model.save(path='model.r{}.zip'.format(runid))
     return epoch_evals
 
-
+def last_dump(runid):
+    def epoch(name):
+        return int(name.split(".")[2][1:])
+    last = max([ epoch(f) for f in os.listdir(".") if f.startswith("model.r{}.".format(runid)) and f.endswith(".zip") ])
+    return last, "model.r{}.e{}.zip".format(runid, last)
 
 def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
     datapath='/home/gchrupala/repos/reimaginet'
