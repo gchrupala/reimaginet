@@ -74,10 +74,9 @@ def last_dump(runid):
     last = max([ epoch(f) for f in os.listdir(".") if f.startswith("model.r{}.".format(runid)) and f.endswith(".zip") ])
     return last, "model.r{}.e{}.zip".format(runid, last)
 
-def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
+def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences, start_epoch=1, runid=''):
     datapath='/home/gchrupala/repos/reimaginet'
-    results = []
-    for epoch in range(1, 1+config['epochs']):
+    for epoch in range(start_epoch, 1+config['epochs']):
         scores = evaluate(prov,
                           datapath=datapath,
                           tokenize=config['tokenize'],
@@ -85,11 +84,8 @@ def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences):
                           task=config['task'],
                           encode_sentences=encode_sentences,
                           batch_size=config['batch_size'],
-                          model_path='model.{}.zip'.format(epoch))
+                          model_path='model.r{}.e{}.zip'.format(runid, epoch))
         json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
-        results.append((numpy.mean(scores['recall'][10], epoch)))
-        print epoch, numpy.mean(scores['recall'][5])
-    return results
    
 
 

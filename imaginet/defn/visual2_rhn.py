@@ -75,26 +75,10 @@ class Visual(task.Task):
     def cost(self, i, s_encoded):
         if self.config['contrastive']:
             i_encoded = util.l2norm(self.ImgEncoder(i))
-            return self.contrastive(i_encoded, s_encoded, margin=self.margin_size)
+            return util.contrastive(i_encoded, s_encoded, margin=self.margin_size)
         else:
             raise NotImplementedError
             
-    def contrastive(self, i, s, margin=0.2): 
-        # i: (fixed) image embedding, 
-        # s: sentence embedding
-        errors = - util.cosine_matrix(i, s)
-        diagonal = errors.diagonal()
-        # compare every diagonal score to scores in its column (all contrastive images for each sentence)
-        cost_s = T.maximum(0, margin - errors + diagonal)  
-        # all contrastive sentences for each image
-        cost_i = T.maximum(0, margin - errors + diagonal.reshape((-1, 1)))  
-        cost_tot = cost_s + cost_i
-        # clear diagonals
-        cost_tot = fill_diagonal(cost_tot, 0)
-
-        return cost_tot.mean()
-    
-
     def args(self, item):
         return (item['input'], item['target_v'])
 
