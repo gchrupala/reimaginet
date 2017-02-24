@@ -4,14 +4,23 @@ import imaginet.task as task
 from funktional.layer import params
 from funktional.util import autoassign
 
+
+def RHNFromConfig(config, conditional=False):
+    RHN = StackedRHN if conditional else StackedRHN0
+    return RHN(config['size_embed'], config['size'],
+               depth=config['depth'],
+               recur_depth=config['recur_depth'],
+               drop_i=config['drop_i'],
+               drop_s=config['drop_s'],
+               residual=config['residual'],
+               seed=config['seed'])
+
 class Shared(Layer):
 
-    def __init__(self, size_vocab, size_embed, size, depth,
-                 recur_depth=1, drop_i=0.0, drop_s=0.0, residual=True, seed=0):
+    def __init__(self, config):
         autoassign(locals())
-        self.Embed = Embedding(self.size_vocab, self.size_embed)
-        self.Encode = StackedRHN0(self.size_embed, self.size, depth=self.depth, recur_depth=self.recur_depth,
-                                        drop_i=self.drop_i, drop_s=self.drop_s, residual=self.residual, seed=self.seed)
+        self.Embed = Embedding(config['size_vocab'], config['size_embed'])
+        self.Encode = RHNFromConfig(config, conditional=False)
     def params(self):
         return params(self.Embed, self.EncoderS, self.EncodeV, self.EncodeT)
 
@@ -19,12 +28,11 @@ class Shared(Layer):
         return self.Encode(self.Embed(input))
 
 class Visual(task.Task):
-    def __init__(self, Shared, size,  ...):
+    def __init__(self, Shared, config):
         autoassign(locals())
-        self.margin_size = config.get('margin_size', 0.2)
+        self.margin_size = config['margin_size']
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.EncodeV = StackedRHN0(self.size, self.size, depth=self.depth_spec, recur_depth=self.recur_depth,
-                                                drop_i=self.drop_i, drop_s=self.drop_s, residual=self.residual, seed=self.seed)
+        self.EncodeV = RHNFromConfig(config, conditional=False) # FIXME Maybe disentangle the different configs
         self.ImgEncode = Dense(config['size_target'], config['size'], init=eval(config.get('init_img', 'orthogonal')))
         self.inputs = [T.imatrix()]
         self.target = T.fmatrix()
@@ -45,19 +53,17 @@ class Visual(task.Task):
 
 
 class Textual(task.Task):
-    def __init__(self, Shared, ...):
+    def __init__(self, Shared, config):
         autoassign(locals())
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.EncodeT = StackedRHN0(self.size, self.size, depth=self.depth_spec, recur_depth=self.recur_depth,
-                                                drop_i=self.drop_i, drop_s=self.drop_s, residual=self.residual, seed=self.seed)
-        self.DecodeT = StackedRHN(self.size, self.size, depth=self.depth_spec, recur_depth=self.recur_depth,
-                                                drop_i=self.drop_i, drop_s=self.drop_s, residual=self.residual, seed=self.seed)
+        self.EncodeT = RHNFromConfig(config['EncodeT'], conditional=False)
+        self.DecodeT = RHNFromConfig(config['DecodeT'], conditional=True)
         self.ToTxt = Dense(size, size_vocab)
         self.inputs = [T.imatrix(), T.imatrix()]
         self.target = T.matrix()
 
     def params(self):
-        return params(self.Shared, self.EncodeT, self.DecodeT)
+        return params(self.Shared, self.EncodeT, self.DecodeT, self.ToTxt)
 
     def __call__(self, input, prox):
         h0 = last(self.EncodeT(self.Shared(input)))
@@ -79,10 +85,9 @@ class Vistext(task.Bundle):
         self.batcher = data['batcher']
         self.scaler = data['scaler']
         self.config['size_vocab'] = self.data['batcher'].mapper.size()
-        self.network = Network(config['size_vocab'], config['size_embed'], config['size'],
-                          config['size_target'], config['depth'])
-        self.visual = Visual(self.network, config)
-        self.textual = Textual(self.network, config)
+        self.Shared = Shared(config['Shared'])
+        self.Visual = Visual(self.Shared, config['Visual'])
+        self.Textual = Textual(self.Shared, config['Textual'])
         if weights is not None:
             assert len(self.network.params())==len(weights)
             for param, weight in zip(self.params(), weights):
