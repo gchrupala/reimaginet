@@ -1,4 +1,3 @@
-import imaginet.defn.visual2_rhn as visual
 import funktional.util as util
 import imaginet.task as task
 from funktional.layer import params
@@ -16,11 +15,11 @@ def RHNFromConfig(config, conditional=False):
                seed=config['seed'])
 
 class Shared(Layer):
-
     def __init__(self, config):
         autoassign(locals())
         self.Embed = Embedding(config['size_vocab'], config['size_embed'])
         self.Encode = RHNFromConfig(config, conditional=False)
+
     def params(self):
         return params(self.Embed, self.EncoderS, self.EncodeV, self.EncodeT)
 
@@ -32,8 +31,8 @@ class Visual(task.Task):
         autoassign(locals())
         self.margin_size = config['margin_size']
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
-        self.EncodeV = RHNFromConfig(config, conditional=False) # FIXME Maybe disentangle the different configs
-        self.ImgEncode = Dense(config['size_target'], config['size'], init=eval(config.get('init_img', 'orthogonal')))
+        self.EncodeV = RHNFromConfig(config, conditional=False)
+        self.ImgEncode = Dense(config['size_target'], config['size'], init=eval(config['init_img']))
         self.inputs = [T.imatrix()]
         self.target = T.fmatrix()
 
@@ -58,7 +57,7 @@ class Textual(task.Task):
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
         self.EncodeT = RHNFromConfig(config['EncodeT'], conditional=False)
         self.DecodeT = RHNFromConfig(config['DecodeT'], conditional=True)
-        self.ToTxt = Dense(size, size_vocab)
+        self.ToTxt = Dense(size, config['size_vocab'])
         self.inputs = [T.imatrix(), T.imatrix()]
         self.target = T.matrix()
 
@@ -79,17 +78,14 @@ class Textual(task.Task):
 
 class Vistext(task.Bundle):
 
-    def __init__(self, data, config, weights=None):
-        self.config = config
-        self.data = data
-        self.batcher = data['batcher']
-        self.scaler = data['scaler']
-        self.config['size_vocab'] = self.data['batcher'].mapper.size()
+    def __init__(self, data_v, data_t, config, weights=None):
+        autoassign(locals())
+#        self.config['size_vocab'] = self.data['batcher'].mapper.size() # FIXME what to do with this?
         self.Shared = Shared(config['Shared'])
         self.Visual = Visual(self.Shared, config['Visual'])
         self.Textual = Textual(self.Shared, config['Textual'])
         if weights is not None:
-            assert len(self.network.params())==len(weights)
+            assert len(self.params())==len(weights)
             for param, weight in zip(self.params(), weights):
                 param.set_value(weight)
         self.visual.compile()
@@ -98,13 +94,13 @@ class Vistext(task.Bundle):
         self.visual.pile = self.visual._make_pile()
 
     def params(self):
-        return self.network.params()
+        return params(self.Shared, self.Visual, self.Textual)
 
     def get_config(self):
         return self.config
 
     def get_data(self):
-        return self.data
+        return (self.data_v, self.data_t)
 
 def load(path):
     """Load data and reconstruct model."""
@@ -112,8 +108,8 @@ def load(path):
         buf = StringIO.StringIO(zf.read('weights.npy'))
         weights = numpy.load(buf)
         config  = json.loads(zf.read('config.json'))
-        data  = pickle.loads(zf.read('data.pkl'))
-    return Vistext(data, config, weights=weights)
+        data_v, data_t  = pickle.loads(zf.read('data.pkl'))
+    return Vistext(data_v, data_t, config, weights=weights)
 
 
 def trainer(model, data, epochs, validate_period, model_path, prob_lm=0.1):
