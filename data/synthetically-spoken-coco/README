@@ -1,0 +1,20 @@
+Synthetically Spoken Coco
+
+Version 1.0
+
+This dataset contain synthetically generated spoken versions of MS COCO [1] captions. 
+The speech was generated using gTTS [2]. The dataset consists of the following files:
+
+- dataset.json: Captions associated with MS COCO images. This information comes from [3]. 
+- mp3.tgz: MP3 files with the audio. Each file name corresponds to caption ID in dataset.json.
+- dataset.mfcc.npy: Numpy array with the Mel Frequence Cepstral Coefficients extracted from 
+  the audio. Each row corresponds to a caption. Rows are in the same order as the captions in
+  dataset.json. MFCCs were extracted using [4].
+
+
+
+[1] http://mscoco.org/dataset/#overview
+[2] https://pypi.python.org/pypi/gTTS
+[3] https://github.com/karpathy/neuraltalk
+[4] https://github.com/jameslyons/python_speech_features
+
