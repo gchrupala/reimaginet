@@ -33,7 +33,7 @@ t	t	plosive
 th	θ	fricative
 uh	ʊ	vowel
 uw	u	vowel
-v	v	vowel
+v	v	fricative
 w	w	approximant
 y	j	approximant
 z	z	fricative
