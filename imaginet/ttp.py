@@ -46,15 +46,15 @@ def texttophonemes(text):
     return phonemelist
     
 ##############################################################################
+def main():
+    inputfile = sys.argv[1]
+    outputfile = sys.argv[2]
 
-inputfile = sys.argv[1]
-outputfile = sys.argv[2]
+    with open(inputfile) as f:    
+        data = json.load(f)
 
-with open(inputfile) as f:    
-    data = json.load(f)
-
-with gzip.open(outputfile,"w") as f:
-    for image in data['images']:
-        for caption in image["sentences"]:
-            phonemes = texttophonemes(caption["raw"])
-            f.write("{}\n".format(json.dumps({'sentid':caption['sentid'], 'phonemes':phonemes})))
+    with gzip.open(outputfile,"w") as f:
+        for image in data['images']:
+            for caption in image["sentences"]:
+                phonemes = texttophonemes(caption["raw"])
+                f.write("{}\n".format(json.dumps({'sentid':caption['sentid'], 'phonemes':phonemes})))

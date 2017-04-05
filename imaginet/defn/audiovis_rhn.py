@@ -1,6 +1,7 @@
 from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, Convolution1D, \
                              Embedding, OneHot,  clipped_rectify, sigmoid, steeper_sigmoid, tanh, CosineDistance,\
                              last, softmax3d, params, Attention
+from funktional.rhn import StackedRHN0
 import funktional.context as context        
 from funktional.layer import params
 import imaginet.task as task
@@ -19,21 +20,19 @@ from imaginet.simple_data import vector_padder
 
 class Encoder(Layer):
 
-    def __init__(self, size_vocab, _size_embed, size, depth,             # TODODODO remove size_embed from this
-                 residual=False, fixed=False, activation=clipped_rectify,
-                 gate_activation=steeper_sigmoid, init_in=orthogonal, init_recur=orthogonal, 
-                filter_length=6, filter_size=1024, stride=3, dropout_prob=0.0): # FIXME use a more reasonable default
+    def __init__(self, size_vocab, size, depth=1, recur_depth=1, 
+                 filter_length=6, filter_size=64, stride=2, drop_i=0.75 , drop_s=0.25, residual=False, seed=1):
         autoassign(locals())
         self.Conv = Convolution1D(self.size_vocab, self.filter_length, self.filter_size, stride=self.stride)
-        self.GRU = StackedGRUH0(self.filter_size, self.size, self.depth,
-                                activation=self.activation, residual=self.residual,
-                                gate_activation=self.gate_activation,
-                                init_in=self.init_in, init_recur=self.init_recur, dropout_prob=self.dropout_prob)
+
+        self.RHN = StackedRHN0(self.filter_size, self.size, depth=self.depth, recur_depth=self.recur_depth,
+                               drop_i=self.drop_i, drop_s=self.drop_s, residual=self.residual, seed=self.seed)
+        
     def params(self):
-        return params(self.Conv, self.GRU)
+        return params(self.Conv, self.RHN)
     
     def __call__(self, input):
-        return self.GRU(self.Conv(input))
+        return self.RHN(self.Conv(input))
 
 class Visual(task.Task):
 
@@ -42,18 +41,16 @@ class Visual(task.Task):
         self.margin_size = config.get('margin_size', 0.2)
         self.updater = util.Adam(max_norm=config['max_norm'], lr=config['lr'])
         self.Encode = Encoder(config['size_vocab'],
-                              config['size_embed'], config['size'],
-                              config['depth'],
-                              activation=eval(config.get('activation',
-                                                         'clipped_rectify')),
-                              gate_activation=eval(config.get('gate_activation', 'steeper_sigmoid')),
+                              config['size'],
                               filter_length=config.get('filter_length', 6), 
                               filter_size=config.get('filter_size', 1024), 
                               stride=config.get('stride', 3),
-                              residual=config.get('residual',False),
-                              init_in=eval(config.get('init_in', 'orthogonal')),
-                              init_recur=eval(config.get('init_recur', 'orthogonal')), 
-                              dropout_prob=config.get('dropout_prob', 0.0))
+                              depth=config.get('depth', 1),
+                              recur_depth=config.get('recur_depth',1),
+                              drop_i=config.get('drop_i', 0.75),
+                              drop_s=config.get('drop_s', 0.25),
+                              residual=config.get('residual', False),
+                              seed=config.get('seed', 1))
         self.Attn   = Attention(config['size'], size=config.get('size_attn', 512))
         self.ImgEncoder  = Dense(config['size_target'], config['size'])
         self.inputs = [T.ftensor3()]
@@ -87,7 +84,7 @@ class Visual(task.Task):
 
     def _make_pile(self):
         with context.context(training=False):
-            rep = self.Encode.GRU.intermediate(self.Encode.Conv(*self.inputs))
+            rep = self.Encode.RHN.intermediate(self.Encode.Conv(*self.inputs))
         return theano.function(self.inputs, rep)
 
     def _make_encode_images(self):

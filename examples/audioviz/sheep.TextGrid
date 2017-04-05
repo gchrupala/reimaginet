@@ -1,0 +1,114 @@
+File type = "ooTextFile"
+Object class = "TextGrid"
+
+xmin = 0 
+xmax = 12.84 
+tiers? <exists> 
+size = 1 
+item []: 
+    item [1]:
+        class = "IntervalTier" 
+        name = "words" 
+        xmin = 0 
+        xmax = 12.84 
+        intervals: size = 25 
+        intervals [1]:
+            xmin = 0 
+            xmax = 0.3110720450523584 
+            text = "while" 
+        intervals [2]:
+            xmin = 0.3110720450523584 
+            xmax = 0.5537216291400175 
+            text = "in the" 
+        intervals [3]:
+            xmin = 0.5537216291400175 
+            xmax = 1.1693326109920419 
+            text = "immediate" 
+        intervals [4]:
+            xmin = 1.1693326109920419 
+            xmax = 1.879307319989267 
+            text = "foreground" 
+        intervals [5]:
+            xmin = 1.879307319989267 
+            xmax = 2.2118271204056885 
+            text = "juts" 
+        intervals [6]:
+            xmin = 2.2118271204056885 
+            xmax = 2.872373210422094 
+            text = "a gnarled" 
+        intervals [7]:
+            xmin = 2.872373210422094 
+            xmax = 3.164451413490573 
+            text = "tree" 
+        intervals [8]:
+            xmin = 3.164451413490573 
+            xmax = 3.744114308811092 
+            text = "branch" 
+        intervals [9]:
+            xmin = 3.744114308811092 
+            xmax = 4.602374874750775 
+            text = "the majority" 
+        intervals [10]:
+            xmin = 4.602374874750775 
+            xmax = 5.235959899868552 
+            text = "of the view" 
+        intervals [11]:
+            xmin = 5.235959899868552 
+            xmax = 5.788661730290443 
+            text = "consists" 
+        intervals [12]:
+            xmin = 5.788661730290443 
+            xmax = 6.646922296230126 
+            text = "of a" 
+        intervals [13]:
+            xmin = 6.646922296230126 
+            xmax = 7.518663394619123 
+            text = "an expanse of" 
+        intervals [14]:
+            xmin = 7.518663394619123 
+            xmax = 7.8421961734026695 
+            text = "short" 
+        intervals [15]:
+            xmin = 7.8421961734026695 
+            xmax = 8.138767887287585 
+            text = "grass" 
+        intervals [16]:
+            xmin = 8.138767887287585 
+            xmax = 8.56115790403277 
+            text = "dotted" 
+        intervals [17]:
+            xmin = 8.56115790403277 
+            xmax = 9.199236439966985 
+            text = "with a few" 
+        intervals [18]:
+            xmin = 9.199236439966985 
+            xmax = 9.702509651408056 
+            text = "longer" 
+        intervals [19]:
+            xmin = 9.702509651408056 
+            xmax = 10.057497005906667 
+            text = "tufts" 
+        intervals [20]:
+            xmin = 10.057497005906667 
+            xmax = 10.36305574142446 
+            text = "and a" 
+        intervals [21]:
+            xmin = 10.36305574142446 
+            xmax = 10.951705658377856 
+            text = "number of" 
+        intervals [22]:
+            xmin = 10.951705658377856 
+            xmax = 11.513394510432622 
+            text = "scattered" 
+        intervals [23]:
+            xmin = 11.513394510432622 
+            xmax = 12.02565474350657 
+            text = "grazing" 
+        intervals [24]:
+            xmin = 12.02565474350657 
+            xmax = 12.488486357599697 
+            text = "sheep" 
+        intervals [25]:
+            xmin = 12.488486357599697 
+            xmax = 12.84 
+            text = "--" 
