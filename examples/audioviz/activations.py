@@ -12,6 +12,9 @@ def synthesize(text, path=None):
 
 def activations(texts, model="/home/gchrupala/reimaginet/run-rhn-coco-9-resume/model.r.e9.zip",
                        audio_dir=None):
+    """Return layer states and embeddings for sentences in texts, by synthesizing speech
+       for each text, extracting MFCC features and applying a speech model to them.
+    """
     logging.info("Loading model")
     model = task.load("/home/gchrupala/reimaginet/run-rhn-coco-9-resume/model.r.e9.zip")
     logging.info("Synthesizing speech")
