@@ -59,6 +59,7 @@ class Visual(task.Task):
     def compile(self):
         task.Task.compile(self)
         self.encode_images = self._make_encode_images()
+	self.conv_states = self._make_conv_states()
         
     def params(self):
         return params(self.Encode, self.Attn, self.ImgEncoder)
@@ -87,6 +88,11 @@ class Visual(task.Task):
             rep = self.Encode.RHN.intermediate(self.Encode.Conv(*self.inputs))
         return theano.function(self.inputs, rep)
 
+    def _make_conv_states(self):
+	with context.context(training=False):
+	    states = self.Encode.Conv(*self.inputs)
+	return theano.function(self.inputs, states)
+
     def _make_encode_images(self):
         images = T.fmatrix()
         with context.context(training=False):
@@ -107,6 +113,13 @@ def layer_states(model, audios, batch_size=128):
     lens = (numpy.array(map(len, audios)) + model.config['filter_length']) // model.config['stride']
     rs = [ r for batch in util.grouper(audios, batch_size) for r in model.task.pile(vector_padder(batch)) ]
     return [ r[-l:,:,:] for (r,l) in zip(rs, lens) ]                                    
+
+    
+def conv_states(model, audios, batch_size=128):
+    """Pass audios through the model and for each audio return the state of each timestep at the convolutional layer."""
+    lens = (numpy.array(map(len, audios)) + model.config['filter_length']) // model.config['stride']
+    rs = [ r for batch in util.grouper(audios, batch_size) for r in model.task.conv_states(vector_padder(batch)) ]
+    return [ r[-l:,:] for (r,l) in zip(rs, lens) ]                                    
 
 def encode_images(model, imgs, batch_size=128):
     """Project imgs to the joint space using model.

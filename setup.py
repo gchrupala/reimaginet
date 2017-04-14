@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='imaginet',
-      version='0.3',
+      version='0.4',
       description='Visually grounded word and sentence representations',
       url='https://github.com/gchrupala/reimaginet',
       author='Grzegorz Chrupała',

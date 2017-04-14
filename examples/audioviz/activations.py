@@ -30,11 +30,13 @@ def activations(texts, model="/home/gchrupala/reimaginet/run-rhn-coco-9-resume/m
                 out.write(audio)
     logging.info("Extracting MFCC features")
     mfccs  = [ tts.extract_mfcc(audio) for audio in audios]
+    logging.info("Extracting convolutional states")
+    conv_states = audiovis.conv_states(model, mfccs)
     logging.info("Extracting layer states")
     states = audiovis.layer_states(model, mfccs)
     logging.info("Extracting sentence embeddings")
     embeddings = audiovis.encode_sentences(model, mfccs)
-    return {'layer_states': states, 'embeddings': embeddings}
+    return {'conv_states': conv_states, 'layer_states': states, 'embeddings': embeddings}
 
 
 def main():
@@ -47,6 +49,8 @@ def main():
                             help='Path to file with model')
     parser.add_argument('--layer_states', default='states.npy',
                             help='Path to file where layer states will be stored')
+    parser.add_argument('--conv_states', default='conv_states.npy',
+                            help='Path to file where state of convolutional layer will be stored')
     parser.add_argument('--embeddings', default='embeddings.npy',
                             help='Path to file where sentence embeddings will be stored')
     parser.add_argument('--audio_dir', default=None,
@@ -56,6 +60,7 @@ def main():
     result = activations(texts, model=args.model, audio_dir=args.audio_dir)
     numpy.save(args.layer_states, result['layer_states'])
     numpy.save(args.embeddings, result['embeddings'])
+    numpy.save(args.conv_states, result['conv_states'])
 
 if __name__=='__main__':
     main()
