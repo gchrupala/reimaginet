@@ -1,4 +1,4 @@
-from funktional.layer import Layer, Dense, StackedGRU, StackedGRUH0, \
+from funktional.layer import Layer, Dense, GRUH0, StackedGRUH0, \
                              Embedding, OneHot,  clipped_rectify,\
                              last, softmax3d, params
 import funktional.context as context
@@ -21,15 +21,11 @@ import sys
 
 class Network:
 
-    def __init__(self, size_vocab, size_embed, size, size_target, depth):
+    def __init__(self, size_vocab, size_embed, size, size_target):
         autoassign(locals())
-        self.Shared = visual.Encoder(size_vocab, size_embed, size, 1,
-                                     residual=True, activation=clipped_rectify)
-        self.EncodeV = StackedGRUH0(size, size, depth=self.depth-1, residual=True,
-                                    activation=clipped_rectify)
-        self.EncodeLM  = StackedGRUH0(size, size, depth=1, residual=True,
-                                      activation=clipped_rectify)
-
+        self.Shared = Embedding(self.size_vocab, self.size_embed)
+        self.EncodeV = StackedGRUH0(size_embed, size, depth=1, activation=clipped_rectify)
+        self.EncodeLM  = StackedGRUH0(size_embed, size, depth=1, activation=clipped_rectify)
         self.ToTxt = Dense(size, size_vocab)
         self.ToImg = Dense(size, size_target)
 
@@ -89,6 +85,12 @@ class LM(task.Task):
         """Choose elements of item to be passed to .loss_test and .train functions."""
         return (item['target_prev_t'], item['target_t'])
 
+    def _make_pile(self):
+        with context.context(training=False):
+            rep = self.network.EncodeLM.intermediate(self.network.Shared(*self.inputs))
+        return theano.function(self.inputs, rep)
+
+
 class LMVisual(task.Bundle):
 
     def __init__(self, data, config, weights=None):
@@ -98,7 +100,7 @@ class LMVisual(task.Bundle):
         self.scaler = data['scaler']
         self.config['size_vocab'] = self.data['batcher'].mapper.size()
         self.network = Network(config['size_vocab'], config['size_embed'], config['size'],
-                          config['size_target'], config['depth'])
+                          config['size_target'])
         self.visual = Visual(self.network, config)
         self.lm = LM(self.network, config)
         if weights is not None:
@@ -106,10 +108,11 @@ class LMVisual(task.Bundle):
             for param, weight in zip(self.params(), weights):
                 param.set_value(weight)
         self.visual.compile()
-        self.lm.compile()
         self.visual.representation = self.visual._make_representation()
         self.visual.pile = self.visual._make_pile()
-
+        self.lm.compile()
+        self.lm.pile = self.lm._make_pile()
+        
     def params(self):
         return self.network.params()
 

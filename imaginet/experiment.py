@@ -26,7 +26,7 @@ def run_train(data, prov, model_config, run_config, eval_config, runid='', resum
         last_epoch = 0
         model = imaginet.task.GenericBundle(dict(scaler=data.scaler,
                                              batcher=data.batcher), model_config, run_config['task'])
-                                             
+
     print layer.param_count(model.params())
     def epoch_eval():
         task = model.task
@@ -37,7 +37,7 @@ def run_train(data, prov, model_config, run_config, eval_config, runid='', resum
         sents_tok =  [ eval_config['tokenize'](sent) for sent in sents ]
         predictions = eval_config['encode_sentences'](model, sents_tok, batch_size=eval_config['batch_size'])
         images = list(prov.iterImages(split=eval_config['split']))
-        img_fs = imaginet.task.encode_images(model, [ img['feat'] for img in images ])
+        img_fs = eval_config['encode_images'](model, numpy.array([ img['feat'] for img in images ], dtype='float32'))
         #img_fs = list(scaler.transform([ image['feat'] for image in images ]))
         correct_img = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
                                       for j in range(len(images)) ]
@@ -61,10 +61,10 @@ def run_train(data, prov, model_config, run_config, eval_config, runid='', resum
                 if j % run_config['validate_period'] == 0:
                         print epoch, j, 0, "valid", "".join([str(numpy.mean(valid_loss()))])
                 sys.stdout.flush()
-                
+
         model.save(path='model.r{}.e{}.zip'.format(runid,epoch))
         epoch_evals.append(epoch_eval())
-        json.dump(epoch_evals[-1], open('scores.{}.json'.format(epoch),'w'))       
+        json.dump(epoch_evals[-1], open('scores.{}.json'.format(epoch),'w'))
     model.save(path='model.r{}.zip'.format(runid))
     return epoch_evals
 
@@ -74,8 +74,13 @@ def last_dump(runid):
     last = max([ epoch(f) for f in os.listdir(".") if f.startswith("model.r{}.".format(runid)) and f.endswith(".zip") ])
     return last, "model.r{}.e{}.zip".format(runid, last)
 
-def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences, start_epoch=1, runid=''):
-    datapath='/home/gchrupala/repos/reimaginet'
+def run_eval(prov, config,
+             encode_sentences=imaginet.task.encode_sentences,
+             encode_images=imaginet.task.encode_images,
+             start_epoch=1,
+             runid='',
+             datapath=None,
+             load=imaginet.task.load):
     for epoch in range(start_epoch, 1+config['epochs']):
         scores = evaluate(prov,
                           datapath=datapath,
@@ -83,24 +88,27 @@ def run_eval(prov, config, encode_sentences=imaginet.task.encode_sentences, star
                           split=config['split'],
                           task=config['task'],
                           encode_sentences=encode_sentences,
+                          encode_images=encode_images,
                           batch_size=config['batch_size'],
-                          model_path='model.r{}.e{}.zip'.format(runid, epoch))
+                          model_path='model.r{}.e{}.zip'.format(runid, epoch),
+                          load=load)
         json.dump(scores, open('scores.{}.json'.format(epoch),'w'))
-   
 
 
 
-def evaluate(prov, 
+
+def evaluate(prov,
              datapath='.',
              model_path='model.zip',
              batch_size=128,
              task=vs.VectorSum,
              encode_sentences=imaginet.task.encode_sentences,
+             encode_images=imaginet.task.encode_images,
              tokenize=words,
-             split='val'
+             split='val',
+             load=imaginet.task.load
             ):
-    model = imaginet.task.load(path=model_path)
-    task = model.task
+    model = load(path=model_path)
     scaler = model.scaler
     batcher = model.batcher
     mapper = batcher.mapper
@@ -108,11 +116,9 @@ def evaluate(prov,
     sents_tok =  [ tokenize(sent) for sent in sents ]
     predictions = encode_sentences(model, sents_tok, batch_size=batch_size)
     images = list(prov.iterImages(split=split))
-    img_fs = imaginet.task.encode_images(model, [ img['feat'] for img in images ])
+    img_fs = encode_images(model, numpy.array([ img['feat'] for img in images ], dtype='float32'))
     #img_fs = list(scaler.transform([ image['feat'] for image in images ]))
     correct_img = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
                                   for j in range(len(images)) ]
                                 for i in range(len(sents)) ] )
     return ranking(img_fs, predictions, correct_img, ns=(1,5,10), exclude_self=False)
-
-

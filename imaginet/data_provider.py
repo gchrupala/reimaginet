@@ -13,7 +13,7 @@ import sys
 import numpy
 
 class BasicDataProvider:
-  def __init__(self, dataset, root='.', extra_train=False, audio_kind='fbank'):
+  def __init__(self, dataset, root='.', extra_train=False, audio_kind=None):
     
     self.root = root
     # !assumptions on folder structure
